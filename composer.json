@@ -1,0 +1,26 @@
+{
+    "name": "amdarter/backup",
+    "description": "A plugin to backup your WordPress site.",
+    "type": "wordpress-plugin",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Anthony M. Darter",
+            "email": "anthonymdarter@gmail.com",
+            "homepage": "http://yourwebsite.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "AMDarter\\": "src/"
+        }
+    },
+    "extra": {
+        "installer-paths": {
+            "wp-content/plugins/{$name}/": ["type:wordpress-plugin"]
+        }
+    }
+}
