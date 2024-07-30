@@ -30,9 +30,24 @@ function amdarter_backup_plugin_activate()
 }
 
 add_action('init', function () {
+    // if (wp_doing_ajax() || wp_doing_cron()) {
+    //     return;
+    // }
+    // try {
+    //     (new BackupEngine())->init();
+    // } catch (\Exception $e) {
+    //     error_log($e->getMessage());
+    // }
+});
+
+
+// Add action wp fully loaded.
+add_action('wp_loaded', function () {
+    if (wp_doing_ajax() || wp_doing_cron()) {
+        return;
+    }
     try {
-        $backupEngine = new BackupEngine();
-        $backupEngine->init();
+        (new BackupEngine())->init();
     } catch (\Exception $e) {
         error_log($e->getMessage());
     }
