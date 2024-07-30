@@ -105,7 +105,7 @@ class TempZipManager
         return str_replace([$this->prefix, '.zip'], '', basename($filename));
     }
 
-    public function getMostRecentTempZip(): ?string
+    public function getMostRecent(): ?string
     {
         $backupFiles = $this->list();
         if (empty($backupFiles)) {
