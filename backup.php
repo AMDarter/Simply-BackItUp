@@ -9,7 +9,7 @@ Author URI: http://yourwebsite.com/
 License: MIT
 */
 
-use AMDarter\ZipManager;
+use AMDarter\SiteBackup\TempZipManager;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -39,13 +39,13 @@ add_action('wp_loaded', function () {
         return;
     }
     try {
-        $zipManager = new ZipManager();
-        $tempBackupZipFile = $zipManager->tempBackupDir() . $zipManager->generateTempZipFilename();
-        $zipManager->zipDir(ABSPATH, $tempBackupZipFile);
+        $tempZipManager = new TempZipManager();
+        $tempBackupZipFile = $tempZipManager->tempDir() . $tempZipManager->generateFilename();
+        $tempZipManager->zipDir(ABSPATH, $tempBackupZipFile);
         /**
          * @todo: Post the ZIP to a cloud storage service or download it directly.
          */
-        $zipManager->cleanupTempZips();
+        $tempZipManager->cleanup();
     } catch (\Exception $e) {
         error_log($e->getMessage());
     }

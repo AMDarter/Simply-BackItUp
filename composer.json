@@ -15,7 +15,7 @@
     },
     "autoload": {
         "psr-4": {
-            "AMDarter\\": "src/"
+            "AMDarter\\SiteBackup\\": "src/"
         }
     },
     "extra": {

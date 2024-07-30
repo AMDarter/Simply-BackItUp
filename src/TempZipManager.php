@@ -1,27 +1,27 @@
 <?php
 
-namespace AMDarter;
+namespace AMDarter\SiteBackup;
 
-class ZipManager
+class TempZipManager
 {
-    public string $tempZipFilePrefix = 'amdarter-wp-site-backup-';
+    public string $prefix = 'amdarter-wp-site-backup-';
 
 
     public function __construct()
-    {
+    {   
     }
 
-    public function generateTempZipFilename(): string
+    public function generateFilename(): string
     {
-        return $this->tempZipFilePrefix . date('Y-m-d-H-i-s') . '.zip';
+        return $this->prefix . date('Y-m-d-H-i-s') . '.zip';
     }
 
-    public function cleanupTempZips($maxAge = 1800)
+    public function cleanup($maxAge = 1800)
     {
-        $backupFiles = $this->listTempBackupZips();
+        $backupFiles = $this->list();
         $now = time();
         foreach ($backupFiles as $backupFile) {
-            if (strpos($backupFile, $this->tempZipFilePrefix) !== false) {
+            if (strpos($backupFile, $this->prefix) !== false) {
                 $fileTime = filemtime($backupFile);
                 $age = $now - $fileTime;
                 if ($age > $maxAge) {
@@ -31,56 +31,24 @@ class ZipManager
         }
     }
 
-    public function listTempBackupZips(): array
+    public function list(): array
     {
-        $tempBackupDir = $this->tempBackupDir();
-        $backupFiles = glob((string) $tempBackupDir . '/*.zip');
+        $tempDir = $this->tempDir();
+        $backupFiles = glob((string) $tempDir . '/*.zip');
         if (!is_array($backupFiles)) {
             return [];
         }
         return $backupFiles;
     }
 
-    public function getTempBackupZipFileNames(): array
+    public function getFileNames(): array
     {
-        $backupFiles = $this->listTempBackupZips();
+        $backupFiles = $this->list();
         $backupFileNames = [];
         foreach ($backupFiles as $backupFile) {
             $backupFileNames[] = basename($backupFile);
         }
         return $backupFileNames;
-    }
-
-    public function log(string $message)
-    {
-        $logFile = __DIR__ . '/logs/backup.log';
-        $logDir = dirname($logFile);
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
-        $log = fopen($logFile, 'a');
-        if ($log === false) {
-            error_log("Failed to open log file: $logFile");
-            return;
-        }
-        $timestamp = date('Y-m-d H:i:s');
-        fwrite($log, "[$timestamp] $message" . PHP_EOL);
-        fclose($log);
-    }
-
-    public function scanFiles(string $path): array
-    {
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
-        );
-        $files = [];
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                $files[] = $file->getRealPath();
-            }
-        }
-        return $files;
     }
 
     /**
@@ -116,7 +84,7 @@ class ZipManager
         closedir($handle);
     }
 
-    public function tempBackupDir(): string
+    public function tempDir(): string
     {
         $tempBackupDir = sys_get_temp_dir() . '/wordpress-backups';
         if (!is_dir($tempBackupDir)) {
@@ -132,14 +100,14 @@ class ZipManager
         return in_array($file_extension, $dangerous_extensions);
     }
 
-    public function extractDateFromTempFilename(string $filename): string
+    public function extractDateFromTempZipFilename(string $filename): string
     {
-        return str_replace([$this->tempZipFilePrefix, '.zip'], '', basename($filename));
+        return str_replace([$this->prefix, '.zip'], '', basename($filename));
     }
 
     public function getMostRecentTempZip(): ?string
     {
-        $backupFiles = $this->listTempBackupZips();
+        $backupFiles = $this->list();
         if (empty($backupFiles)) {
             return null;
         }
@@ -148,8 +116,8 @@ class ZipManager
         }
         // Find the newest backup file by sorting the list of files by date.
         usort($backupFiles, function ($a, $b) {
-            $aDate = strtotime($this->extractDateFromTempFilename($a));
-            $bDate = strtotime($this->extractDateFromTempFilename($b));
+            $aDate = strtotime($this->extractDateFromTempZipFilename($a));
+            $bDate = strtotime($this->extractDateFromTempZipFilename($b));
             return $aDate <=> $bDate;
         });
         $last = end($backupFiles);
@@ -158,4 +126,37 @@ class ZipManager
         }
         return $last;
     }
+
+        // public function log(string $message)
+    // {
+    //     $logFile = __DIR__ . '/logs/backup.log';
+    //     $logDir = dirname($logFile);
+    //     if (!is_dir($logDir)) {
+    //         mkdir($logDir, 0755, true);
+    //     }
+    //     $log = fopen($logFile, 'a');
+    //     if ($log === false) {
+    //         error_log("Failed to open log file: $logFile");
+    //         return;
+    //     }
+    //     $timestamp = date('Y-m-d H:i:s');
+    //     fwrite($log, "[$timestamp] $message" . PHP_EOL);
+    //     fclose($log);
+    // }
+
+    // public function scanFiles(string $path): array
+    // {
+    //     $iterator = new \RecursiveIteratorIterator(
+    //         new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+    //         \RecursiveIteratorIterator::SELF_FIRST
+    //     );
+    //     $files = [];
+    //     foreach ($iterator as $file) {
+    //         if ($file->isFile()) {
+    //             $files[] = $file->getRealPath();
+    //         }
+    //     }
+    //     return $files;
+    // }
+
 }
