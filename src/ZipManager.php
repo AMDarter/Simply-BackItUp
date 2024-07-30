@@ -2,33 +2,18 @@
 
 namespace AMDarter;
 
-class BackupEngine
+class ZipManager
 {
+    public string $tempZipFilePrefix = 'amdarter-wp-site-backup-';
+
+
     public function __construct()
     {
-        
     }
 
-    public function init()
+    public function generateTempZipFilename(): string
     {
-        $this->log('Backup plugin initialized at exactly ' . microtime(true));
-        // $this->log('Scanning started: ' . microtime(true));
-        // $files = $this->scanFiles(ABSPATH);
-        // $this->log('Scan complete: ' . microtime(true));
-        // $this->log('Files scanned: ' . count($files));
-        // $backupDir = $this->getBackupDir();
-        // $this->log('Backup directory: ' . $backupDir);
-        // if (!is_dir($backupDir)) {
-        //     mkdir($backupDir, 0755, true);
-        // }
-        // $backupFile = $backupDir . '/amdarter-wp-site-backup-' . date('Y-m-d-H-i-s') . '.zip';
-        // $this->log('Backup file: ' . $backupFile);
-        // $this->log('Zipping started: ' . microtime(true));
-        // $this->zipDir(ABSPATH, $backupFile);
-        // $this->log('Zipping complete: ' . microtime(true));
-        // $this->log('Temp backup files: ' . print_r($this->getTempBackupZipFileNames(), true));
-        // $this->log('Cleaning up temp backup files older than 30 minutes.');
-        // $this->cleanupTempZips();
+        return $this->tempZipFilePrefix . date('Y-m-d-H-i-s') . '.zip';
     }
 
     public function cleanupTempZips($maxAge = 1800)
@@ -36,7 +21,7 @@ class BackupEngine
         $backupFiles = $this->listTempBackupZips();
         $now = time();
         foreach ($backupFiles as $backupFile) {
-            if (strpos($backupFile, 'amdarter-wp-site-backup-') !== false) {
+            if (strpos($backupFile, $this->tempZipFilePrefix) !== false) {
                 $fileTime = filemtime($backupFile);
                 $age = $now - $fileTime;
                 if ($age > $maxAge) {
@@ -46,14 +31,17 @@ class BackupEngine
         }
     }
 
-    public function listTempBackupZips()
+    public function listTempBackupZips(): array
     {
-        $backupDir = $this->getBackupDir();
-        $backupFiles = glob($backupDir . '/*.zip');
+        $tempBackupDir = $this->tempBackupDir();
+        $backupFiles = glob((string) $tempBackupDir . '/*.zip');
+        if (!is_array($backupFiles)) {
+            return [];
+        }
         return $backupFiles;
     }
 
-    public function getTempBackupZipFileNames()
+    public function getTempBackupZipFileNames(): array
     {
         $backupFiles = $this->listTempBackupZips();
         $backupFileNames = [];
@@ -95,21 +83,20 @@ class BackupEngine
         return $files;
     }
 
-    public function zipDir($sourcePath, $outZipPath)
+    /**
+     * @throws \Exception
+     */
+    public function zipDir(string $sourcePath, string $outZipPath): void
     {
-        $pathInfo = pathinfo($sourcePath);
-        $dirName = $pathInfo['basename'];
-        $z = new \ZipArchive();
-        if ($z->open($outZipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-            $this->log('Failed to create zip file at ' . $outZipPath);
-            return false;
+        $zipArchive = new \ZipArchive();
+        if ($zipArchive->open($outZipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw new \Exception("Failed to create ZIP archive at $outZipPath");
         }
-        $this->folderToZip($sourcePath, $z, strlen("$sourcePath/"));
-        $z->close();
-        return true;
+        $this->folderToZip($sourcePath, $zipArchive, strlen("$sourcePath/"));
+        $zipArchive->close();
     }
 
-    private function folderToZip($folder, &$zipFile, $exclusiveLength)
+    private function folderToZip(string $folder, \ZipArchive &$zipArchive, int $exclusiveLength): void
     {
         $handle = opendir($folder);
         while (false !== ($f = readdir($handle))) {
@@ -118,26 +105,57 @@ class BackupEngine
                 // Remove prefix from file path before adding to zip.
                 $localPath = substr($filePath, $exclusiveLength);
                 if (is_file($filePath)) {
-                    $zipFile->addFile($filePath, $localPath);
+                    $zipArchive->addFile($filePath, $localPath);
                 } elseif (is_dir($filePath)) {
                     // Add sub-directory.
-                    $zipFile->addEmptyDir($localPath);
-                    $this->folderToZip($filePath, $zipFile, $exclusiveLength);
+                    $zipArchive->addEmptyDir($localPath);
+                    $this->folderToZip($filePath, $zipArchive, $exclusiveLength);
                 }
             }
         }
         closedir($handle);
     }
 
-    private function isDangerousExtension($filename)
+    public function tempBackupDir(): string
+    {
+        $tempBackupDir = sys_get_temp_dir() . '/wordpress-backups';
+        if (!is_dir($tempBackupDir)) {
+            mkdir($tempBackupDir, 0755, true);
+        }
+        return $tempBackupDir;
+    }
+
+    public function isDangerousExtension(string $filename): bool
     {
         $dangerous_extensions = ['exe', 'com', 'bat', 'cmd', 'sh', 'bash', 'bin', 'msi', 'vbs', 'ps1', 'jar', 'wsf', 'hta', 'scr', 'pif', 'gadget', 'inf', 'reg', 'msp', 'scf', 'lnk'];
         $file_extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         return in_array($file_extension, $dangerous_extensions);
     }
 
-    private function getBackupDir()
+    public function extractDateFromTempFilename(string $filename): string
     {
-        return sys_get_temp_dir() . '/wordpress-backups';
+        return str_replace([$this->tempZipFilePrefix, '.zip'], '', basename($filename));
+    }
+
+    public function getMostRecentTempZip(): ?string
+    {
+        $backupFiles = $this->listTempBackupZips();
+        if (empty($backupFiles)) {
+            return null;
+        }
+        if (count($backupFiles) === 1) {
+            return $backupFiles[0];
+        }
+        // Find the newest backup file by sorting the list of files by date.
+        usort($backupFiles, function ($a, $b) {
+            $aDate = strtotime($this->extractDateFromTempFilename($a));
+            $bDate = strtotime($this->extractDateFromTempFilename($b));
+            return $aDate <=> $bDate;
+        });
+        $last = end($backupFiles);
+        if ($last === false) {
+            return null;
+        }
+        return $last;
     }
 }

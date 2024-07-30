@@ -9,7 +9,7 @@ Author URI: http://yourwebsite.com/
 License: MIT
 */
 
-use AMDarter\BackupEngine;
+use AMDarter\ZipManager;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -30,16 +30,8 @@ function amdarter_backup_plugin_activate()
 }
 
 add_action('init', function () {
-    // if (wp_doing_ajax() || wp_doing_cron()) {
-    //     return;
-    // }
-    // try {
-    //     (new BackupEngine())->init();
-    // } catch (\Exception $e) {
-    //     error_log($e->getMessage());
-    // }
-});
 
+});
 
 // Add action wp fully loaded.
 add_action('wp_loaded', function () {
@@ -47,7 +39,13 @@ add_action('wp_loaded', function () {
         return;
     }
     try {
-        (new BackupEngine())->init();
+        $zipManager = new ZipManager();
+        $tempBackupZipFile = $zipManager->tempBackupDir() . $zipManager->generateTempZipFilename();
+        $zipManager->zipDir(ABSPATH, $tempBackupZipFile);
+        /**
+         * @todo: Post the ZIP to a cloud storage service or download it directly.
+         */
+        $zipManager->cleanupTempZips();
     } catch (\Exception $e) {
         error_log($e->getMessage());
     }
