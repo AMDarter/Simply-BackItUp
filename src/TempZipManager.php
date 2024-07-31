@@ -1,6 +1,6 @@
 <?php
 
-namespace AMDarter\SiteBackup;
+namespace AMDarter\SimplyBackItUp;
 
 class TempZipManager
 {
