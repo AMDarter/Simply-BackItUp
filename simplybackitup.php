@@ -9,7 +9,7 @@ Author URI: http://yourwebsite.com/
 License: MIT
 */
 
-use AMDarter\SiteBackup\TempZipManager;
+use AMDarter\SimplyBackItUp\TempZipManager;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
