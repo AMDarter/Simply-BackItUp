@@ -1,6 +1,6 @@
 <?php
 /*
-Plugin Name: Backup
+Plugin Name: Simply BackItUp
 Plugin URI: http://yourwebsite.com/
 Description: A plugin to backup your WordPress site.
 Version: 1.0
