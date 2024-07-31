@@ -8,12 +8,28 @@ document.addEventListener('DOMContentLoaded', function() {
             this.createEmailSetting();
             this.createButtons();
             this.appendContainer();
+            this.populateSettings();
             this.addEventListeners();
         },
 
         createContainer: function() {
             this.container = document.createElement('div');
             this.container.className = 'wrap';
+        },
+
+        createAlert: function(message, type = 'success') {
+            const alert = document.createElement('div');
+            alert.id = 'SimplyBackItUpAlert';
+            alert.className = `notice notice-${type}`;
+            alert.innerHTML = `<p>${message}</p>`;
+            this.container.prepend(alert);
+        },
+
+        removeAlert: function() {
+            const alert = document.getElementById('SimplyBackItUpAlert');
+            if (alert) {
+                alert.remove();
+            }
         },
 
         createHeading: function() {
@@ -86,20 +102,55 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('simply-backitup-settings').appendChild(this.container);
         },
 
+        populateSettings: function() {
+            document.getElementById('backup-frequency').value = SimplyBackItUp.settings.frequency;
+            document.getElementById('backup-time').value = SimplyBackItUp.settings.time;
+            document.getElementById('backup-email').value = SimplyBackItUp.settings.email;
+        },
+
         addEventListeners: function() {
             document.getElementById('backup-site').addEventListener('click', function() {
                 var xhr = new XMLHttpRequest();
                 xhr.open('POST', SimplyBackItUp.ajaxurl, true);
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
                 xhr.onload = function() {
+                    BackItUpSettings.removeAlert();
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        alert('Backup completed successfully.');
-                        location.reload();
+                        BackItUpSettings.createAlert('Backup successful.');
                     } else {
-                        alert('Backup failed.');
+                        BackItUpSettings.createAlert('Failed to backup site.', 'error');
                     }
+                    setTimeout(() => {
+                        BackItUpSettings.removeAlert();
+                    }, 5000);
                 };
-                xhr.send('action=amdarter_backup_site&nonce=' + encodeURIComponent(SimplyBackItUp.nonce));
+                var data = new URLSearchParams();
+                data.append('action', 'simply_backitup_now');
+                data.append('nonce', SimplyBackItUp.nonce);
+                xhr.send(data);
+            });
+
+            document.getElementById('save-settings').addEventListener('click', function() {
+                const formData = new FormData();
+                formData.append('action', 'simply_backitup_save_settings');
+                formData.append('nonce', SimplyBackItUp.nonce);
+                formData.append('frequency', document.getElementById('backup-frequency').value);
+                formData.append('time', document.getElementById('backup-time').value);
+                formData.append('email', document.getElementById('backup-email').value);
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', SimplyBackItUp.ajaxurl, true);
+                xhr.onload = function() {
+                    BackItUpSettings.removeAlert();
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        BackItUpSettings.createAlert('Settings saved.');
+                    } else {
+                        BackItUpSettings.createAlert('Failed to save settings.', 'error');
+                    }
+                    setTimeout(() => {
+                        BackItUpSettings.removeAlert();
+                    }, 5000);
+                };
+                xhr.send(formData);
             });
         }
     };

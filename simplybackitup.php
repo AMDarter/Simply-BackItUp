@@ -33,19 +33,60 @@ add_action('admin_menu', function () {
 
 add_action('admin_enqueue_scripts', function($hook_suffix) {
     if ($hook_suffix === 'toplevel_page_simply-backitup') {
+        $settings = [
+            'frequency' => get_option('simply_backitup_frequency', 'daily'),
+            'time' => get_option('simply_backitup_time', '03:00'),
+            'email' => get_option('simply_backitup_email', '')
+        ];
         wp_enqueue_script('simply-backitup-script', plugin_dir_url(__FILE__) . 'src/Admin/js/backup-settings-admin-page.js', [], '1.0', true);
         wp_localize_script('simply-backitup-script', 'SimplyBackItUp', [
             'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('simply_backitup_nonce')
+            'nonce' => wp_create_nonce('simply_backitup_nonce'),
+            'settings' => $settings
         ]);
     }
 });
 
-add_action('wp_ajax_simply_backitup_backup_site', function () {
+add_action('wp_ajax_simply_backitup_save_settings', function () {
     if (!current_user_can('manage_options')) {
         wp_die('You do not have permission to perform this action.');
     }
+
     check_ajax_referer('simply_backitup_nonce', 'nonce');
+
+    $frequency = sanitize_text_field($_POST['frequency']);
+    $time = sanitize_text_field($_POST['time']);
+    $email = sanitize_email($_POST['email']);
+
+    if (!is_email($email)) {
+        wp_send_json_error('Invalid email address.');
+        return;
+    }
+
+    if (!in_array($frequency, ['daily', 'weekly', 'monthly'])) {
+        wp_send_json_error('Invalid frequency.');
+        return;
+    }
+
+    if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $time)) {
+        wp_send_json_error('Invalid time.');
+        return;
+    }
+
+    update_option('simply_backitup_frequency', $frequency);
+    update_option('simply_backitup_time', $time);
+    update_option('simply_backitup_email', $email);
+
+    wp_send_json_success();
+});
+
+add_action('wp_ajax_simply_backitup_now', function () {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have permission to perform this action.');
+    }
+
+    check_ajax_referer('simply_backitup_nonce', 'nonce');
+
     try {
         $tempZipService = new TempZip();
         $tempBackupZipFile = $tempZipService->tempDir() . $tempZipService->generateFilename();
