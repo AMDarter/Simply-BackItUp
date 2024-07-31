@@ -6,7 +6,7 @@ use AMDarter\SimplyBackItUp\Utils\Scanner;
 
 class TempZip
 {
-    public string $prefix = 'amdarter-wp-site-backup-';
+    public string $prefix = 'simply-backitup-wp-site-backup-';
 
     public function __construct()
     {   

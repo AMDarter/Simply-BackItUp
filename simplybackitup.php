@@ -36,7 +36,8 @@ add_action('admin_enqueue_scripts', function($hook_suffix) {
         $settings = [
             'frequency' => get_option('simply_backitup_frequency', 'daily'),
             'time' => get_option('simply_backitup_time', '03:00'),
-            'email' => get_option('simply_backitup_email', '')
+            'email' => get_option('simply_backitup_email', ''),
+            'backupStorageLocation' => get_option('simply_backitup_backup_location', '')
         ];
         wp_enqueue_style('simply-backitup-style', plugin_dir_url(__FILE__) . 'src/Admin/css/backup-settings-admin-page.css', [], '1.0');
         wp_enqueue_script('simply-backitup-script', plugin_dir_url(__FILE__) . 'src/Admin/js/backup-settings-admin-page.js', [], '1.0', true);
@@ -77,6 +78,7 @@ add_action('wp_ajax_simply_backitup_save_settings', function () {
     update_option('simply_backitup_frequency', $frequency);
     update_option('simply_backitup_time', $time);
     update_option('simply_backitup_email', $email);
+    update_option('simply_backitup_backup_storage_location', '');
 
     wp_send_json_success();
 });
@@ -89,7 +91,7 @@ add_action('wp_ajax_simply_backitup_step1', function () {
     try {
         // Step 1: Zip up files
         $tempZipService = new TempZip();
-        $tempBackupZipFile = $tempZipService->tempDir() . $tempZipService->generateFilename();
+        $tempBackupZipFile = $tempZipService->tempDir() . DIRECTORY_SEPARATOR . $tempZipService->generateFilename();
         $tempZipService->zipDir(ABSPATH, $tempBackupZipFile);
         set_transient('simply_backitup_temp_zip_file', $tempBackupZipFile, 3600);
         wp_send_json_success(['message' => 'Files zipped', 'progress' => 33]);

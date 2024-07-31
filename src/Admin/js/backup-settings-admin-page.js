@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
             this.createFrequencySetting();
             this.createTimeSetting();
             this.createEmailSetting();
+            this.createStorageLocationSetting();
             this.createButtons();
             this.appendContainer();
             this.populateSettings();
@@ -84,6 +85,25 @@ document.addEventListener('DOMContentLoaded', function() {
             this.container.appendChild(emailContainer);
         },
 
+        createStorageLocationSetting: function() {
+            const storageLocationLabel = document.createElement('label');
+            storageLocationLabel.setAttribute('for', 'backup-storage-location');
+            storageLocationLabel.textContent = 'Storage Location';
+            const storageLocationSelect = document.createElement('select');
+            storageLocationSelect.id = 'backup-storage-location';
+            storageLocationSelect.innerHTML = `
+                <option value="Google Drive">Google Drive</option>
+                <option value="Dropbox">Dropbox</option>
+                <option value="OneDrive">OneDrive</option>
+                <option value="Amazon S3">Amazon S3</option>
+                <option value="FTP">FTP</option>
+            `;
+            const storageLocationContainer = document.createElement('p');
+            storageLocationContainer.appendChild(storageLocationLabel);
+            storageLocationContainer.appendChild(storageLocationSelect);
+            this.container.appendChild(storageLocationContainer);
+        },
+
         createButtons: function() {
             const saveButton = document.createElement('button');
             saveButton.id = 'save-settings';
@@ -105,9 +125,18 @@ document.addEventListener('DOMContentLoaded', function() {
         },
 
         populateSettings: function() {
-            document.getElementById('backup-frequency').value = SimplyBackItUp.settings.frequency;
+            document.getElementById('backup-frequency').childNodes.forEach(function(option) {
+                if (option.value === SimplyBackItUp.settings.frequency) {
+                    option.selected = true;
+                }
+            });
             document.getElementById('backup-time').value = SimplyBackItUp.settings.time;
             document.getElementById('backup-email').value = SimplyBackItUp.settings.email;
+            document.getElementById('backup-storage-location').childNodes.forEach(function(option) {
+                if (option.value === SimplyBackItUp.settings.storageLocation) {
+                    option.selected = true;
+                }
+            });
         },
 
         createBackupNowProgress: function() {
