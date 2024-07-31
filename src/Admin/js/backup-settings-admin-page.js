@@ -2,7 +2,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const BackItUpSettings = {
         init: function() {
             this.createContainer();
-            this.createHeading();
+            this.createHeading(1, 'Simply BackItUp');
+            this.createHeading(2, 'Backup Settings');
             this.createFrequencySetting();
             this.createTimeSetting();
             this.createEmailSetting();
@@ -32,9 +33,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
 
-        createHeading: function() {
-            const heading = document.createElement('h1');
-            heading.textContent = 'Backup Settings';
+        createHeading: function(level = 1, text = '') {
+            const heading = document.createElement('h' + level);
+            heading.textContent = text;
             this.container.appendChild(heading);
         },
 
@@ -91,7 +92,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const backupNowButton = document.createElement('button');
             backupNowButton.id = 'backup-site';
-            backupNowButton.className = 'button button-primary';
+            backupNowButton.className = 'button button-secondary';
+            backupNowButton.style.marginLeft = '10px';
             backupNowButton.textContent = 'Backup Now';
 
             this.container.appendChild(saveButton);

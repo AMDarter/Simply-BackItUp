@@ -1,4 +1,12 @@
-#backup-now-progress-container {
+#simply-backitup-settings input {
+    margin-left: 10px;
+}
+
+#simply-backitup-settings select {
+    margin-left: 10px;
+}
+
+#simply-backitup-settings #backup-now-progress-container {
     margin: 20px 0;
     padding: 10px;
     border: 1px solid #ccc;
@@ -6,7 +14,7 @@
     background-color: #f7f7f7;
 }
 
-#backup-now-progress {
+#simply-backitup-settings #backup-now-progress {
     width: 100%;
     height: 24px;
     background-color: #e0e0e0;
@@ -14,25 +22,25 @@
     overflow: hidden;
 }
 
-#backup-now-progress .progress-bar {
+#simply-backitup-settings #backup-now-progress .progress-bar {
     height: 100%;
     background-color: #0073aa; /* WordPress blue */
     width: 0%;
     transition: width 0.3s;
 }
 
-#backup-now-progress-text {
+#simply-backitup-settings #backup-now-progress-text {
     margin-top: 10px;
     font-size: 14px;
     font-weight: bold;
 }
 
-#backup-now-progress-list {
+#simply-backitup-settings #backup-now-progress-list {
     margin-top: 10px;
     list-style-type: none;
     padding-left: 0;
 }
 
-#backup-now-progress-list li {
+#simply-backitup-settings #backup-now-progress-list li {
     margin-bottom: 5px;
 }
