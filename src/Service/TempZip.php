@@ -8,7 +8,6 @@ class TempZip
 {
     public string $prefix = 'amdarter-wp-site-backup-';
 
-
     public function __construct()
     {   
     }

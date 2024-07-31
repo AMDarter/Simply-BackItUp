@@ -32,17 +32,15 @@ class Scanner
         return in_array($file_extension, $dangerous_extensions);
     }
 
-    public static function flagPotentiallyDangerousFiles(string $path): array
+    public static function flagDangerousFileExtensions(string $path): array
     {
         $files = self::scanFiles($path);
         $flaggedFiles = [];
-
         foreach ($files as $file) {
             if (self::isDangerousExt($file)) {
                 $flaggedFiles[] = $file;
             }
         }
-
         return $flaggedFiles;
     }
 }
