@@ -38,6 +38,7 @@ add_action('admin_enqueue_scripts', function($hook_suffix) {
             'time' => get_option('simply_backitup_time', '03:00'),
             'email' => get_option('simply_backitup_email', '')
         ];
+        wp_enqueue_style('simply-backitup-style', plugin_dir_url(__FILE__) . 'src/Admin/css/backup-settings-admin-page.css', [], '1.0');
         wp_enqueue_script('simply-backitup-script', plugin_dir_url(__FILE__) . 'src/Admin/js/backup-settings-admin-page.js', [], '1.0', true);
         wp_localize_script('simply-backitup-script', 'SimplyBackItUp', [
             'ajaxurl' => admin_url('admin-ajax.php'),
@@ -80,24 +81,83 @@ add_action('wp_ajax_simply_backitup_save_settings', function () {
     wp_send_json_success();
 });
 
-add_action('wp_ajax_simply_backitup_now', function () {
+add_action('wp_ajax_simply_backitup_step1', function () {
     if (!current_user_can('manage_options')) {
         wp_die('You do not have permission to perform this action.');
     }
-
     check_ajax_referer('simply_backitup_nonce', 'nonce');
-
     try {
+        // Step 1: Zip up files
         $tempZipService = new TempZip();
         $tempBackupZipFile = $tempZipService->tempDir() . $tempZipService->generateFilename();
         $tempZipService->zipDir(ABSPATH, $tempBackupZipFile);
-        /**
-         * @todo: Post the ZIP to a cloud storage service or download it directly.
-         */
-        $tempZipService->cleanup();
-        wp_send_json_success();
+        set_transient('simply_backitup_temp_zip_file', $tempBackupZipFile, 3600);
+        wp_send_json_success(['message' => 'Files zipped', 'progress' => 33]);
     } catch (\Exception $e) {
         error_log($e->getMessage());
-        wp_send_json_error();
+        wp_send_json_error(['message' => $e->getMessage()]);
     }
 });
+
+add_action('wp_ajax_simply_backitup_step2', function () {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have permission to perform this action.');
+    }
+    check_ajax_referer('simply_backitup_nonce', 'nonce');
+    try {
+        // Step 2: Export database
+        $databaseExported = export_database(); // Implement this function
+        if ($databaseExported) {
+            wp_send_json_success(['message' => 'Database exported', 'progress' => 66]);
+        } else {
+            throw new Exception('Database export failed');
+        }
+    } catch (\Exception $e) {
+        error_log($e->getMessage());
+        wp_send_json_error(['message' => $e->getMessage()]);
+    }
+});
+
+add_action('wp_ajax_simply_backitup_step3', function () {
+    if (!current_user_can('manage_options')) {
+        wp_die('You do not have permission to perform this action.');
+    }
+    check_ajax_referer('simply_backitup_nonce', 'nonce');
+    try {
+        $tempBackupZipFile = get_transient('simply_backitup_temp_zip_file');
+        if (!$tempBackupZipFile) {
+            throw new Exception('Temporary backup file not found');
+        }
+        // Step 3: Upload to cloud
+        $uploadedToCloud = upload_to_cloud($tempBackupZipFile); // Implement this function
+        if ($uploadedToCloud) {
+            delete_transient('simply_backitup_temp_zip_file');
+            wp_send_json_success(['message' => 'Backup uploaded to cloud', 'progress' => 100]);
+        } else {
+            throw new Exception('Cloud upload failed');
+        }
+    } catch (\Exception $e) {
+        error_log($e->getMessage());
+        wp_send_json_error(['message' => $e->getMessage()]);
+    }
+});
+
+function export_database() {
+    // Implement your database export logic here
+    // Return true on success, false on failure
+
+    // Simulate running task for 5 seconds
+    sleep(5);
+
+    return true;
+}
+
+function upload_to_cloud($file) {
+    // Implement your cloud upload logic here
+    // Return true on success, false on failure
+
+    // Simulate running task for 5 seconds
+    sleep(5);
+
+    return true;
+}

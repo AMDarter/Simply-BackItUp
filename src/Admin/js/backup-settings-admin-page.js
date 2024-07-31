@@ -108,26 +108,139 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('backup-email').value = SimplyBackItUp.settings.email;
         },
 
+        createBackupNowProgress: function() {
+            const progressContainer = document.createElement('div');
+            progressContainer.id = 'backup-now-progress-container';
+
+            const progress = document.createElement('div');
+            progress.id = 'backup-now-progress';
+            progress.className = 'progress';
+
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            progressBar.setAttribute('role', 'progressbar');
+            progressBar.setAttribute('aria-valuemin', '0');
+            progressBar.setAttribute('aria-valuemax', '100');
+            progressBar.setAttribute('aria-valuenow', '0');
+            progressBar.style.width = '0%';
+
+            const progressText = document.createElement('div');
+            progressText.id = 'backup-now-progress-text';
+            progressText.className = 'progress-bar-text';
+
+            const progressList = document.createElement('ul');
+            progressList.id = 'backup-now-progress-list';
+
+            progress.appendChild(progressBar);
+            progressContainer.appendChild(progress);
+            progressContainer.appendChild(progressText);
+            progressContainer.appendChild(progressList);
+            this.container.prepend(progressContainer);
+        },
+
+        updateBackupNowProgress: function(value, message) {
+            const progressBar = document.querySelector('#backup-now-progress .progress-bar');
+            progressBar.style.width = `${value}%`;
+            progressBar.setAttribute('aria-valuenow', value);
+            document.getElementById('backup-now-progress-text').textContent = `${value}%`;
+
+            const progressList = document.getElementById('backup-now-progress-list');
+            const listItem = document.createElement('li');
+            listItem.textContent = message;
+            progressList.appendChild(listItem);
+        },
+
+        removeBackupNowProgress: function() {
+            const progress = document.getElementById('backup-now-progress-container');
+            if (progress) {
+                progress.remove();
+            }
+        },
+
+        performStep1: function() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', SimplyBackItUp.ajaxurl, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+            BackItUpSettings.updateBackupNowProgress(0, 'Starting backup...');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        BackItUpSettings.updateBackupNowProgress(response.data.progress, response.data.message);
+                        BackItUpSettings.performStep2();
+                    } else {
+                        BackItUpSettings.updateBackupNowProgress(0, response.data.message);
+                        BackItUpSettings.removeBackupNowProgress();
+                    }
+                } else {
+                    BackItUpSettings.updateBackupNowProgress(0, 'Failed to start backup.');
+                    BackItUpSettings.removeBackupNowProgress();
+                }
+            };
+            const data = new URLSearchParams();
+            data.append('action', 'simply_backitup_step1');
+            data.append('nonce', SimplyBackItUp.nonce);
+            xhr.send(data);
+        },
+
+        performStep2: function() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', SimplyBackItUp.ajaxurl, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        BackItUpSettings.updateBackupNowProgress(response.data.progress, response.data.message);
+                        BackItUpSettings.performStep3();
+                    } else {
+                        BackItUpSettings.updateBackupNowProgress(33, response.data.message);
+                        BackItUpSettings.removeBackupNowProgress();
+                    }
+                } else {
+                    BackItUpSettings.updateBackupNowProgress(33, 'Failed to export database.');
+                    BackItUpSettings.removeBackupNowProgress();
+                }
+            };
+            const data = new URLSearchParams();
+            data.append('action', 'simply_backitup_step2');
+            data.append('nonce', SimplyBackItUp.nonce);
+            xhr.send(data);
+        },
+
+        performStep3: function() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', SimplyBackItUp.ajaxurl, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        BackItUpSettings.updateBackupNowProgress(response.data.progress, response.data.message);
+                        setTimeout(() => {
+                            BackItUpSettings.removeBackupNowProgress();
+                        }, 5000);
+                    } else {
+                        BackItUpSettings.updateBackupNowProgress(66, response.data.message);
+                        BackItUpSettings.removeBackupNowProgress();
+                    }
+                } else {
+                    BackItUpSettings.updateBackupNowProgress(66, 'Failed to upload to cloud.');
+                    BackItUpSettings.removeBackupNowProgress();
+                }
+            };
+            const data = new URLSearchParams();
+            data.append('action', 'simply_backitup_step3');
+            data.append('nonce', SimplyBackItUp.nonce);
+            xhr.send(data);
+        },
+
         addEventListeners: function() {
             document.getElementById('backup-site').addEventListener('click', function() {
-                var xhr = new XMLHttpRequest();
-                xhr.open('POST', SimplyBackItUp.ajaxurl, true);
-                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-                xhr.onload = function() {
-                    BackItUpSettings.removeAlert();
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        BackItUpSettings.createAlert('Backup successful.');
-                    } else {
-                        BackItUpSettings.createAlert('Failed to backup site.', 'error');
-                    }
-                    setTimeout(() => {
-                        BackItUpSettings.removeAlert();
-                    }, 5000);
-                };
-                var data = new URLSearchParams();
-                data.append('action', 'simply_backitup_now');
-                data.append('nonce', SimplyBackItUp.nonce);
-                xhr.send(data);
+                BackItUpSettings.removeBackupNowProgress();
+                BackItUpSettings.createBackupNowProgress();
+                BackItUpSettings.updateBackupNowProgress(0);
+                BackItUpSettings.performStep1();
             });
 
             document.getElementById('save-settings').addEventListener('click', function() {
