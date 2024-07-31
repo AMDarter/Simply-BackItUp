@@ -9,7 +9,7 @@ Author URI: http://yourwebsite.com/
 License: MIT
 */
 
-use AMDarter\SimplyBackItUp\TempZipManager;
+use AMDarter\SimplyBackItUp\Service\TempZip;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -86,13 +86,13 @@ add_action('wp_ajax_amdarter_backup_site', function () {
         wp_die('You do not have permission to perform this action.');
     }
     try {
-        $tempZipManager = new TempZipManager();
-        $tempBackupZipFile = $tempZipManager->tempDir() . $tempZipManager->generateFilename();
-        $tempZipManager->zipDir(ABSPATH, $tempBackupZipFile);
+        $tempZipService = new TempZip();
+        $tempBackupZipFile = $tempZipService->tempDir() . $tempZipService->generateFilename();
+        $tempZipService->zipDir(ABSPATH, $tempBackupZipFile);
         /**
          * @todo: Post the ZIP to a cloud storage service or download it directly.
          */
-        $tempZipManager->cleanup();
+        $tempZipService->cleanup();
         wp_send_json_success();
     } catch (\Exception $e) {
         error_log($e->getMessage());

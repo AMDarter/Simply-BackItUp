@@ -1,8 +1,10 @@
 <?php
 
-namespace AMDarter\SimplyBackItUp;
+namespace AMDarter\SimplyBackItUp\Service;
 
-class TempZipManager
+use AMDarter\SimplyBackItUp\Utils\Scanner;
+
+class TempZip
 {
     public string $prefix = 'amdarter-wp-site-backup-';
 
@@ -68,7 +70,7 @@ class TempZipManager
     {
         $handle = opendir($folder);
         while (false !== ($f = readdir($handle))) {
-            if ($f != '.' && $f != '..' && $f != '.git' && !$this->isDangerousExtension($f)) {
+            if ($f != '.' && $f != '..' && $f != '.git' && !Scanner::isDangerousExt($f)) {
                 $filePath = "$folder/$f";
                 // Remove prefix from file path before adding to zip.
                 $localPath = substr($filePath, $exclusiveLength);
@@ -93,13 +95,6 @@ class TempZipManager
         return $tempBackupDir;
     }
 
-    public function isDangerousExtension(string $filename): bool
-    {
-        $dangerous_extensions = ['exe', 'com', 'bat', 'cmd', 'sh', 'bash', 'bin', 'msi', 'vbs', 'ps1', 'jar', 'wsf', 'hta', 'scr', 'pif', 'gadget', 'inf', 'reg', 'msp', 'scf', 'lnk'];
-        $file_extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        return in_array($file_extension, $dangerous_extensions);
-    }
-
     public function extractDateFromTempZipFilename(string $filename): string
     {
         return str_replace([$this->prefix, '.zip'], '', basename($filename));
@@ -114,7 +109,6 @@ class TempZipManager
         if (count($backupFiles) === 1) {
             return $backupFiles[0];
         }
-        // Find the newest backup file by sorting the list of files by date.
         usort($backupFiles, function ($a, $b) {
             $aDate = strtotime($this->extractDateFromTempZipFilename($a));
             $bDate = strtotime($this->extractDateFromTempZipFilename($b));
@@ -126,37 +120,5 @@ class TempZipManager
         }
         return $last;
     }
-
-        // public function log(string $message)
-    // {
-    //     $logFile = __DIR__ . '/logs/backup.log';
-    //     $logDir = dirname($logFile);
-    //     if (!is_dir($logDir)) {
-    //         mkdir($logDir, 0755, true);
-    //     }
-    //     $log = fopen($logFile, 'a');
-    //     if ($log === false) {
-    //         error_log("Failed to open log file: $logFile");
-    //         return;
-    //     }
-    //     $timestamp = date('Y-m-d H:i:s');
-    //     fwrite($log, "[$timestamp] $message" . PHP_EOL);
-    //     fclose($log);
-    // }
-
-    // public function scanFiles(string $path): array
-    // {
-    //     $iterator = new \RecursiveIteratorIterator(
-    //         new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
-    //         \RecursiveIteratorIterator::SELF_FIRST
-    //     );
-    //     $files = [];
-    //     foreach ($iterator as $file) {
-    //         if ($file->isFile()) {
-    //             $files[] = $file->getRealPath();
-    //         }
-    //     }
-    //     return $files;
-    // }
 
 }
