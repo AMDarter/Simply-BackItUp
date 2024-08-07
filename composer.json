@@ -13,14 +13,39 @@
     "require": {
         "php": ">=7.4"
     },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5"
+    },
     "autoload": {
         "psr-4": {
             "AMDarter\\SimplyBackItUp\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AMDarter\\SimplyBackItUp\\Tests\\": "tests/"
         }
     },
     "extra": {
         "installer-paths": {
             "wp-content/plugins/{$name}/": ["type:wordpress-plugin"]
         }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@optimize-autoload"
+        ],
+        "post-update-cmd": [
+            "@optimize-autoload"
+        ],
+        "optimize-autoload": [
+            "composer dump-autoload --optimize"
+        ],
+        "development-mode": [
+            "composer install"
+        ],
+        "production-mode": [
+            "composer install --no-dev"
+        ]
     }
 }

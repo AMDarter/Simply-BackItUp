@@ -1,6 +1,6 @@
 <?php
 
-namespace AMDarter\SimplyBackItUp\Admin;
+namespace AMDarter\SimplyBackItUp\Utils;
 
 class Logger
 {

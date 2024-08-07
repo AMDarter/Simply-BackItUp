@@ -35,7 +35,7 @@ class TempZip
     public function list(): array
     {
         $tempDir = $this->tempDir();
-        $backupFiles = glob((string) $tempDir . '/*.zip');
+        $backupFiles = glob((string) $tempDir . DIRECTORY_SEPARATOR . '*.zip');
         if (!is_array($backupFiles)) {
             return [];
         }
@@ -61,7 +61,7 @@ class TempZip
         if ($zipArchive->open($outZipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
             throw new \Exception("Failed to create ZIP archive at $outZipPath");
         }
-        $this->folderToZip($sourcePath, $zipArchive, strlen("$sourcePath/"));
+        $this->folderToZip($sourcePath, $zipArchive, strlen($sourcePath . DIRECTORY_SEPARATOR));
         $zipArchive->close();
     }
 
@@ -70,7 +70,7 @@ class TempZip
         $handle = opendir($folder);
         while (false !== ($f = readdir($handle))) {
             if ($f != '.' && $f != '..' && $f != '.git' && !Scanner::isDangerousExt($f)) {
-                $filePath = "$folder/$f";
+                $filePath = $folder . DIRECTORY_SEPARATOR . $f;
                 // Remove prefix from file path before adding to zip.
                 $localPath = substr($filePath, $exclusiveLength);
                 if (is_file($filePath)) {
@@ -87,7 +87,7 @@ class TempZip
 
     public function tempDir(): string
     {
-        $tempBackupDir = sys_get_temp_dir() . '/wordpress-backups';
+        $tempBackupDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'wordpress-backups';
         if (!is_dir($tempBackupDir)) {
             mkdir($tempBackupDir, 0755, true);
         }
