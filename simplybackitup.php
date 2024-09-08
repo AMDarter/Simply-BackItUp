@@ -17,6 +17,8 @@ use AMDarter\SimplyBackItUp\Service\TempZip;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+define('SIMPLY_BACKITUP_ENV_MODE', 'DEVELOPMENT');
+
 register_activation_hook(__FILE__, function () {
     if (!extension_loaded('zip')) {
         deactivate_plugins(plugin_basename(__FILE__));
@@ -31,25 +33,60 @@ add_action('admin_menu', function () {
     });
 });
 
-add_action('admin_enqueue_scripts', function($hook_suffix) {
+add_action('admin_enqueue_scripts', function ($hook_suffix) {
     if ($hook_suffix === 'toplevel_page_simply-backitup') {
         $settings = [
-            'frequency' => get_option('simply_backitup_frequency', 'daily'),
-            'time' => get_option('simply_backitup_time', '03:00'),
-            'email' => get_option('simply_backitup_email', ''),
-            'backupStorageLocation' => get_option('simply_backitup_backup_storage_location', ''),
-            'lastBackupTime' => get_option('simply_backitup_last_backup', null),
-            'backupStorageCredentials' => get_option('simply_backitup_backup_storage_credentials', [])
+            'backup-frequency' => get_option('simply_backitup_frequency', 'daily'),
+            'backup-time' => get_option('simply_backitup_time', '03:00'),
+            'backup-email' => get_option('simply_backitup_email', ''),
+            'backup-storage-location' => get_option('simply_backitup_backup_storage_location', ''),
+            'last-backup-time' => get_option('simply_backitup_last_backup', null),
+            'backup-storage-credentials' => get_option('simply_backitup_backup_storage_credentials', [])
         ];
-        wp_enqueue_style('simply-backitup-style', plugin_dir_url(__FILE__) . 'src/Admin/css/backup-settings-admin-page.css', [], '1.0');
-        wp_enqueue_script('simply-backitup-script', plugin_dir_url(__FILE__) . 'src/Admin/js/backup-settings-admin-page.js', [], '1.0', true);
-        wp_localize_script('simply-backitup-script', 'SimplyBackItUp', [
+        $js_files = glob((string) plugin_dir_path(__FILE__) . 'src/Admin/dist/*.js');
+        if (!empty($js_files)) {
+            wp_enqueue_script(
+                'simply-backitup-admin-settings-script',
+                plugin_dir_url(__FILE__) . 'src/Admin/dist/' . basename($js_files[0]),
+                [],
+                null,
+                true
+            );
+        }
+        $css_files = glob((string) plugin_dir_path(__FILE__) . 'src/Admin/dist/*.css');
+        if (!empty($css_files)) {
+            wp_enqueue_style(
+                'simply-backitup-admin-settings-style',
+                plugin_dir_url(__FILE__) . 'src/Admin/dist/' . basename($css_files[0]),
+                [],
+                null,
+            );
+        }
+        wp_localize_script('simply-backitup-admin-settings-script', 'SimplyBackItUp', [
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('simply_backitup_nonce'),
             'settings' => $settings
         ]);
     }
 });
+
+function simplyBackItUpRecursiveSanitizeText($data)
+{
+    if (is_array($data)) {
+        $sanitizedData = [];
+        foreach ($data as $key => $value) {
+            $sanitizedData[$key] = simplyBackItUpRecursiveSanitizeText($value);
+        }
+        return $sanitizedData;
+    } else if (is_object($data)) {
+        $sanitizedData = [];
+        foreach ($data as $key => $value) {
+            $sanitizedData[$key] = simplyBackItUpRecursiveSanitizeText($value);
+        }
+        return $sanitizedData;
+    }
+    return sanitize_text_field($data);
+}
 
 add_action('wp_ajax_simply_backitup_save_settings', function () {
     if (!current_user_can('manage_options')) {
@@ -58,38 +95,70 @@ add_action('wp_ajax_simply_backitup_save_settings', function () {
 
     check_ajax_referer('simply_backitup_nonce', 'nonce');
 
-    $frequency = sanitize_text_field($_POST['frequency']);
-    $time = sanitize_text_field($_POST['time']);
-    $email = sanitize_email($_POST['email']);
-    $backupStorageLocation = sanitize_text_field($_POST['backup-storage-location']);
-    $backupStorageCredentials = json_decode(stripslashes(sanitize_text_field($_POST['backupStorageCredentials'])), true);
-
-    if (!is_email($email)) {
-        wp_send_json_error('Invalid email address.');
-        return;
+    foreach ($_POST as $key => $value) {
+        switch ($key) {
+            case 'backup-frequency':
+                if (!is_string($value)) {
+                    wp_send_json_error('Invalid frequency.');
+                    return;
+                }
+                $frequency = sanitize_text_field($value);
+                if (!in_array($frequency, ['daily', 'weekly', 'monthly'])) {
+                    wp_send_json_error('Invalid frequency.');
+                    return;
+                }
+                update_option('simply_backitup_frequency', $frequency);
+                break;
+            case 'backup-time':
+                if (!is_string($value)) {
+                    wp_send_json_error('Invalid time.');
+                    return;
+                }
+                $time = sanitize_text_field($value);
+                if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $time)) {
+                    wp_send_json_error('Invalid time.');
+                    return;
+                }
+                update_option('simply_backitup_time', $time);
+                break;
+            case 'backup-email':
+                if (!is_string($value)) {
+                    wp_send_json_error('Invalid email address.');
+                    return;
+                }
+                $email = sanitize_email($value);
+                if (!is_email($email)) {
+                    wp_send_json_error('Invalid email address.');
+                    return;
+                }
+                update_option('simply_backitup_email', $email);
+                break;
+            case 'backup-storage-location':
+                if (!is_string($value)) {
+                    wp_send_json_error('Invalid storage location.');
+                    return;
+                }
+                $backupStorageLocation = sanitize_text_field($value);
+                if (!in_array($backupStorageLocation, ['Google Drive', 'Dropbox', 'Amazon S3', 'OneDrive', 'FTP'])) {
+                    wp_send_json_error('Invalid backup storage location.');
+                    return;
+                }
+                update_option('simply_backitup_backup_storage_location', $backupStorageLocation);
+                break;
+            case 'backup-storage-credentials':
+                if (!is_string($value)) {
+                    wp_send_json_error('Invalid credentials.');
+                    return;
+                }
+                if (empty($value)) {
+                    $value = '{}';
+                }
+                $backupStorageCredentials = simplyBackItUpRecursiveSanitizeText(json_decode(stripslashes($value), true));
+                // @todo Validate credentials based on storage location.
+                update_option('simply_backitup_backup_storage_credentials', $backupStorageCredentials);
+                break;
+        }
     }
-
-    if (!in_array($frequency, ['daily', 'weekly', 'monthly'])) {
-        wp_send_json_error('Invalid frequency.');
-        return;
-    }
-
-    if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $time)) {
-        wp_send_json_error('Invalid time.');
-        return;
-    }
-
-    if (!in_array($backupStorageLocation, ['Google Drive', 'Dropbox', 'Amazon S3', 'OneDrive', 'FTP'])) {
-        wp_send_json_error('Invalid backup storage location.');
-        return;
-    }
-
-    update_option('simply_backitup_frequency', $frequency);
-    update_option('simply_backitup_time', $time);
-    update_option('simply_backitup_email', $email);
-    update_option('simply_backitup_backup_storage_location', $backupStorageLocation);
-    update_option('simply_backitup_backup_storage_credentials', $backupStorageCredentials);
-
     wp_send_json_success();
 });
 
@@ -98,6 +167,8 @@ add_action('wp_ajax_simply_backitup_step1', function () {
         wp_die('You do not have permission to perform this action.');
     }
     check_ajax_referer('simply_backitup_nonce', 'nonce');
+    wp_send_json_error(['message' => 'Testing failure']);
+    return;
     try {
         // Step 1: Zip up files
         $tempZipService = new TempZip();
@@ -141,11 +212,11 @@ add_action('wp_ajax_simply_backitup_step3', function () {
             throw new Exception('Temporary backup file not found');
         }
         // Step 3: Upload to cloud
-        $uploadedToCloud = upload_to_cloud($tempBackupZipFile); // Implement this function
+        $uploadedToCloud = upload_to_cloud($tempBackupZipFile);
         if ($uploadedToCloud) {
             delete_transient('simply_backitup_temp_zip_file');
             wp_send_json_success([
-                'message' => 'Backup uploaded to cloud', 
+                'message' => 'Backup uploaded to cloud',
                 'progress' => 100,
                 'backupTime' => get_option('simply_backitup_last_backup')
             ]);
@@ -158,7 +229,8 @@ add_action('wp_ajax_simply_backitup_step3', function () {
     }
 });
 
-function export_database() {
+function export_database()
+{
     // Implement your database export logic here
     // Return true on success, false on failure
 
@@ -168,7 +240,8 @@ function export_database() {
     return true;
 }
 
-function upload_to_cloud($file) {
+function upload_to_cloud($file)
+{
     // Implement your cloud upload logic here
     // Return true on success, false on failure
 
