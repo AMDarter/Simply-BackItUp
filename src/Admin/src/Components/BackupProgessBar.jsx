@@ -1,32 +1,20 @@
+import { Progress } from "@chakra-ui/react";
+
 const BackupProgessBar = ({ value, message }) => {
 	return (
 		<div id="backup-now-progress-container">
+			<Progress
+				value={value}
+				colorScheme={value < 100 ? "blue" : "green"}
+				max={100}
+				min={0}
+				size="md"
+			></Progress>
 			<div
-				id="backup-now-progress"
-				className="progress"
-			>
-				<div
-					className="progress-bar"
-					role="progressbar"
-					aria-valuemin="0"
-					aria-valuemax="100"
-					aria-valuenow={value}
-					style={{
-						width: `${value}%`,
-						backgroundColor: value < 100 ? "#0073aa" : "#46b450",
-					}}
-				></div>
-			</div>
-			<div
-				id="backup-now-progress-text"
-				className="progress-bar-text"
-			>
-				<div
-					className={value < 100 ? "spinner is-active" : ""}
-					style={{ display: "inline-block", marginLeft: "5px" }}
-				></div>
-				{message}
-			</div>
+				className={value < 100 ? "spinner is-active" : ""}
+				style={{ display: "inline-block" }}
+			></div>
+			{message}
 		</div>
 	);
 };
