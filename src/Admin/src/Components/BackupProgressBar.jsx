@@ -1,6 +1,6 @@
 import { Progress } from "@chakra-ui/react";
 
-const BackupProgessBar = ({ value, message }) => {
+const BackupProgressBar = ({ value, message }) => {
 	return (
 		<div id="backup-now-progress-container">
 			<Progress
@@ -19,4 +19,4 @@ const BackupProgessBar = ({ value, message }) => {
 	);
 };
 
-export default BackupProgessBar;
+export default BackupProgressBar;

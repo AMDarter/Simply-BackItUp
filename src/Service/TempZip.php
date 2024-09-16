@@ -6,11 +6,14 @@ use AMDarter\SimplyBackItUp\Utils\Scanner;
 
 class TempZip
 {
-    public string $prefix = 'simply-backitup-wp-site-backup-';
 
-    public function __construct()
-    {   
-    }
+    private $settings = [
+        'excludeDangerousExtensions' => true,
+    ];
+
+    private string $prefix = 'simply-backitup-wp-site-backup-';
+
+    public function __construct() {}
 
     public function generateFilename(): string
     {
@@ -68,18 +71,24 @@ class TempZip
     private function folderToZip(string $folder, \ZipArchive &$zipArchive, int $exclusiveLength): void
     {
         $handle = opendir($folder);
+        $exclude = ['.', '..', '.git'];
+        $excludeDangerousExtensions = $this->settings['excludeDangerousExtensions'] ?? true;
         while (false !== ($f = readdir($handle))) {
-            if ($f != '.' && $f != '..' && $f != '.git' && !Scanner::isDangerousExt($f)) {
-                $filePath = $folder . DIRECTORY_SEPARATOR . $f;
-                // Remove prefix from file path before adding to zip.
-                $localPath = substr($filePath, $exclusiveLength);
-                if (is_file($filePath)) {
-                    $zipArchive->addFile($filePath, $localPath);
-                } elseif (is_dir($filePath)) {
-                    // Add sub-directory.
-                    $zipArchive->addEmptyDir($localPath);
-                    $this->folderToZip($filePath, $zipArchive, $exclusiveLength);
-                }
+            if (in_array($f, $exclude)) {
+                continue; // Skip excluded files
+            }
+            if ($excludeDangerousExtensions && Scanner::isDangerousExt($f)) {
+                continue; // Skip dangerous file extensions
+            }
+            $filePath = $folder . DIRECTORY_SEPARATOR . $f;
+            // Remove prefix from file path before adding to zip.
+            $localPath = substr($filePath, $exclusiveLength);
+            if (is_file($filePath)) {
+                $zipArchive->addFile($filePath, $localPath);
+            } elseif (is_dir($filePath)) {
+                // Add sub-directory.
+                $zipArchive->addEmptyDir($localPath);
+                $this->folderToZip($filePath, $zipArchive, $exclusiveLength);
             }
         }
         closedir($handle);
@@ -119,5 +128,4 @@ class TempZip
         }
         return $last;
     }
-
 }

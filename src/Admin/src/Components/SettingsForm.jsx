@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import PropTypes from "prop-types";
-import BackupProgessBar from "./BackupProgessBar";
+import { BackupProgressBar, TestConnectionButton } from "./allComponents";
 import {
 	Box,
 	Button,
@@ -10,6 +10,15 @@ import {
 	FormLabel,
 	Input,
 } from "@chakra-ui/react";
+import {
+	recursiveAppendFormData,
+	render24HourTimeOptions,
+	performBackupStep,
+	submitFormData,
+} from "../utils/formUtils";
+import { useAlert } from "../context/AlertContext";
+import useTimeoutManager from "../hooks/useTimeoutManager";
+import { useLastBackup } from "../context/LastBackupContext";
 
 const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 	const defaultBackupStorageCredentials = {
@@ -41,31 +50,25 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 	});
 
 	const [errors, setErrors] = useState({});
-	const [alert, setAlert] = useState(null);
+	const { createAlert } = useAlert();
 	const [backupProgress, setBackupProgress] = useState(null);
-	const [alertTimeout, setAlertTimeout] = useState(null);
-	const [lastBackupTime, setLastBackupTime] = useState(
-		settings?.lastBackupTime || null
-	);
 	const [savingSettings, setSavingSettings] = useState(false);
+	const [runningBackup, setRunningBackup] = useState(false);
 	const [saveButtonColor, setSaveButtonColor] = useState("primary");
-	const [scrollY, setScrollY] = useState(window.scrollY);
+	const [saveAndBackupNowButtonColor, setSaveAndBackupNowButtonColor] =
+		useState("secondary");
+	const { set: setTimeout } = useTimeoutManager();
+	const { setLastBackupTime } = useLastBackup();
 
-	useEffect(() => {
-		const handScrollPositionY = (e) => {
-			setScrollY(window.scrollY);
-		};
-		window.addEventListener("scroll", handScrollPositionY);
-		return () => {
-			window.removeEventListener("scroll", handScrollPositionY);
-		};
-	}, []);
-
-	useEffect(() => {
-		return () => {
-			clearTimeout(alertTimeout);
-		};
-	}, []);
+	const setButtonColor = (buttonType, color) => {
+		if (buttonType === "save") {
+			setSaveButtonColor(color);
+			setTimeout(() => setSaveButtonColor("primary"), 1000);
+		} else if (buttonType === "saveAndBackupNow") {
+			setSaveAndBackupNowButtonColor(color);
+			setTimeout(() => setSaveAndBackupNowButtonColor("secondary"), 1000);
+		}
+	};
 
 	const validateForm = () => {
 		const errors = {};
@@ -149,7 +152,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		}
 
 		setErrors(errors);
-		console.log({ errors });
 		return Object.keys(errors).length === 0;
 	};
 
@@ -172,163 +174,164 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		}));
 	};
 
-	const recursiveAppendFormData = (formData, key, data) => {
-		if (Array.isArray(data)) {
-			for (const [index, subData] of data.entries()) {
-				recursiveAppendFormData(formData, `${key}[${index}]`, subData);
-			}
-		} else if (typeof data === "object" && data !== null) {
-			for (const [subKey, subData] of Object.entries(data)) {
-				recursiveAppendFormData(formData, `${key}[${subKey}]`, subData);
-			}
-		} else {
-			formData.append(key, data);
-		}
-	};
-
-	const handleSubmit = async (e) => {
+	const handleSaveSettings = async (e) => {
 		e.preventDefault();
+		setSavingSettings(true);
 
-		try {
-			if (savingSettings) {
-				throw new Error("Settings are being saved. Cannot save again.");
+		const saveResult = await handleSubmit();
+
+		if (saveResult.success) {
+			createAlert("Settings saved successfully.", "success");
+			setButtonColor("save", "success");
+		} else {
+			createAlert(
+				saveResult.message || "An error occurred while saving settings.",
+				"error"
+			);
+			if (saveResult.validationErrors) {
+				setErrors((prevErrors) => ({
+					...prevErrors,
+					...saveResult.validationErrors,
+				}));
 			}
-			setSavingSettings(true);
-
-			if (!validateForm()) {
-				setSavingSettings(false);
-				throw new Error(
-					"The form contains errors. Please correct them and try again."
-				);
-			}
-
-			const formData = new FormData();
-			formData.append("action", "simply_backitup_save_settings");
-			formData.append("nonce", nonce);
-
-			for (const [key, value] of Object.entries(formValues)) {
-				recursiveAppendFormData(formData, key, value);
-			}
-
-			const response = await fetch(ajaxUrl, {
-				method: "POST",
-				body: formData,
-			});
-			const responseData = await response.json();
-			if (responseData?.success) {
-				createAlert("Settings saved successfully.", "success");
-				setSavingSettings(false);
-				setSaveButtonColor("success");
-				return responseData;
-			} else {
-				createAlert(
-					"Failed to save settings: " +
-						(responseData?.data?.message || "An unexpected error occurred."),
-					"error"
-				);
-				if (responseData?.data?.validationErrors) {
-					setErrors((prevErrors) => ({
-						...prevErrors,
-						...responseData.data.validationErrors,
-					}));
-				}
-				setSavingSettings(false);
-				setSaveButtonColor("error");
-				return Promise.reject(responseData);
-			}
-		} catch (error) {
-			console.error("Error:", error);
-			createAlert(error.message, "error");
-			setSavingSettings(false);
-			setSaveButtonColor("error");
-			return Promise.reject(error);
-		} finally {
-			setTimeout(() => {
-				setSaveButtonColor("primary");
-			}, 1000);
+			setButtonColor("save", "error");
 		}
+
+		setSavingSettings(false);
 	};
 
-	const createAlert = (message, type = "success") => {
-		setAlert({ message, type });
-		clearTimeout(alertTimeout);
-		setAlertTimeout(
-			setTimeout(() => {
-				setAlert(null);
-			}, 5000)
-		);
-	};
+	const handleSubmit = async () => {
+		if (savingSettings) {
+			return {
+				success: false,
+				message: "Settings are being saved. Cannot save again.",
+			};
+		}
 
-	const performBackupStep = async ({
-		action,
-		nonce,
-		progressValue,
-		message,
-	}) => {
+		if (!validateForm()) {
+			return {
+				success: false,
+				message: "The form contains errors. Please correct them and try again.",
+			};
+		}
+
 		const formData = new FormData();
-		formData.append("action", action);
+		formData.append("action", "simply_backitup_save_settings");
 		formData.append("nonce", nonce);
 
-		const response = await fetch(ajaxUrl, {
-			method: "POST",
-			body: formData,
-		});
+		for (const [key, value] of Object.entries(formValues)) {
+			recursiveAppendFormData(formData, key, value);
+		}
 
-		const responseData = await response.json();
-		console.log({ responseData });
-		if (responseData.success) {
-			setBackupProgress({
-				value: progressValue,
-				message: responseData?.data?.message || message,
-				failed: false,
-			});
-			if (progressValue === 100 && responseData?.data?.backupTime) {
-				setLastBackupTime(responseData.data.backupTime);
-			}
+		const { success, data, error } = await submitFormData(ajaxUrl, formData);
+
+		if (success) {
+			return { success: true };
 		} else {
-			throw new Error(
-				responseData?.data?.message || "Failed to perform backup step."
-			);
+			return {
+				success: false,
+				message: data?.data?.message || error,
+				validationErrors: data?.data?.validationErrors,
+			};
 		}
 	};
 
 	const handleBackupNow = async () => {
-		setSavingSettings(true);
-		setBackupProgress({
-			value: 0,
-			message: "Starting backup...",
+		let backupProgressResult;
+
+		setBackupProgress({ value: 0, message: "Starting backup..." });
+
+		backupProgressResult = await performBackupStep({
+			ajaxUrl,
+			action: "simply_backitup_step1",
+			nonce: nonce,
+			progressValue: 33,
+			message: "Creating backup file...",
 		});
 
-		try {
-			await performBackupStep({
-				action: "simply_backitup_step1",
-				nonce: nonce,
-				progressValue: 33,
-				message: "Creating backup file...",
-			});
-			await performBackupStep({
-				action: "simply_backitup_step2",
-				nonce: nonce,
-				progressValue: 66,
-				message: "Uploading backup file...",
-			});
-			await performBackupStep({
-				action: "simply_backitup_step3",
-				nonce: nonce,
-				progressValue: 100,
-				message: "Backup completed.",
-			});
-			createAlert("Backup completed successfully.", "success");
-			setTimeout(() => {
-				setBackupProgress(null);
-				setSavingSettings(false);
-			}, 2000);
-		} catch (error) {
-			console.error("Error during backup process:", error);
-			setBackupProgress(null);
-			createAlert("An error occurred during backup.", "error");
-			setSavingSettings(false);
+		if (!backupProgressResult.success) {
+			return { success: false, message: "Failed at step 1" };
 		}
+
+		setBackupProgress(backupProgressResult.progress);
+
+		backupProgressResult = await performBackupStep({
+			ajaxUrl,
+			action: "simply_backitup_step2",
+			nonce: nonce,
+			progressValue: 66,
+			message: "Uploading backup file...",
+		});
+
+		if (!backupProgressResult.success) {
+			return { success: false, message: "Failed at step 2" };
+		}
+
+		setBackupProgress(backupProgressResult.progress);
+
+		backupProgressResult = await performBackupStep({
+			ajaxUrl,
+			action: "simply_backitup_step3",
+			nonce: nonce,
+			progressValue: 100,
+			message: "Backup completed.",
+		});
+
+		if (!backupProgressResult.success) {
+			return { success: false, message: "Failed at step 3" };
+		}
+
+		setBackupProgress(backupProgressResult.progress);
+		setLastBackupTime(backupProgressResult.progress.backupTime);
+		return { success: true };
+	};
+
+	const handleSaveAndBackupNow = async (e) => {
+		e.preventDefault();
+
+		setRunningBackup(true);
+		setSavingSettings(true);
+
+		const saveResult = await handleSubmit();
+
+		if (!saveResult.success) {
+			createAlert(
+				saveResult.message || "An error occurred while saving settings.",
+				"error"
+			);
+			if (saveResult.validationErrors) {
+				setErrors((prevErrors) => ({
+					...prevErrors,
+					...saveResult.validationErrors,
+				}));
+			}
+			setButtonColor("saveAndBackupNow", "error");
+			setSavingSettings(false);
+			setRunningBackup(false);
+			return;
+		}
+
+		createAlert(
+			"Settings saved successfully. Proceeding with backup...",
+			"success"
+		);
+
+		const backupResult = await handleBackupNow();
+
+		if (backupResult.success) {
+			createAlert("Backup completed successfully.", "success");
+		} else {
+			createAlert(
+				backupResult.message || "An error occurred during backup.",
+				"error"
+			);
+		}
+
+		setTimeout(() => {
+			setSavingSettings(false);
+			setBackupProgress(null);
+			setRunningBackup(false);
+		}, 1000);
 	};
 
 	const renderCredentialFields = (location) => {
@@ -350,6 +353,18 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 
 	const renderGoogleDriveFields = () => (
 		<>
+			<FormControl
+				as="fieldset"
+				mt={3}
+			>
+				<TestConnectionButton
+					platform="Google Drive"
+					disabled={savingSettings || runningBackup}
+					onClick={() => {
+						console.log("Test Google Drive Connection");
+					}}
+				></TestConnectionButton>
+			</FormControl>
 			{renderCredentialInput("Google Drive API Key", "googleDriveApiKey")}
 			{renderCredentialInput("Google Drive Client ID", "googleDriveClientId")}
 			{renderCredentialInput(
@@ -360,11 +375,37 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 	);
 
 	const renderDropboxFields = () => (
-		<>{renderCredentialInput("Dropbox Access Token", "dropboxAccessToken")}</>
+		<>
+			<FormControl
+				as="fieldset"
+				mt={3}
+			>
+				<TestConnectionButton
+					platform="Dropbox"
+					disabled={savingSettings || runningBackup}
+					onClick={() => {
+						console.log("Test Dropbox Connection");
+					}}
+				></TestConnectionButton>
+			</FormControl>
+			{renderCredentialInput("Dropbox Access Token", "dropboxAccessToken")}
+		</>
 	);
 
 	const renderOneDriveFields = () => (
 		<>
+			<FormControl
+				as="fieldset"
+				mt={3}
+			>
+				<TestConnectionButton
+					platform="OneDrive"
+					disabled={savingSettings || runningBackup}
+					onClick={() => {
+						console.log("Test OneDrive Connection");
+					}}
+				></TestConnectionButton>
+			</FormControl>
 			{renderCredentialInput("OneDrive Client ID", "oneDriveClientId")}
 			{renderCredentialInput("OneDrive Client Secret", "oneDriveClientSecret")}
 		</>
@@ -372,6 +413,18 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 
 	const renderAmazonS3Fields = () => (
 		<>
+			<FormControl
+				as="fieldset"
+				mt={3}
+			>
+				<TestConnectionButton
+					platform="Amazon S3"
+					disabled={savingSettings || runningBackup}
+					onClick={() => {
+						console.log("Test Amazon S3 Connection");
+					}}
+				></TestConnectionButton>
+			</FormControl>
 			{renderCredentialInput("Amazon S3 Access Key", "amazonS3AccessKey")}
 			{renderCredentialInput("Amazon S3 Secret Key", "amazonS3SecretKey")}
 			{renderCredentialInput("Amazon S3 Bucket Name", "amazonS3BucketName")}
@@ -381,6 +434,18 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 
 	const renderFTPFields = () => (
 		<>
+			<FormControl
+				as="fieldset"
+				mt={3}
+			>
+				<TestConnectionButton
+					platform="FTP"
+					disabled={savingSettings || runningBackup}
+					onClick={() => {
+						console.log("Test FTP Connection");
+					}}
+				></TestConnectionButton>
+			</FormControl>
 			{renderCredentialInput("FTP Host", "ftpHost")}
 			{renderCredentialInput("FTP Username", "ftpUsername")}
 			{renderCredentialInput("FTP Password", "ftpPassword")}
@@ -398,7 +463,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 			<Input
 				type="text"
 				name={inputId}
-				disabled={savingSettings}
+				disabled={savingSettings || runningBackup}
 				value={formValues.backupStorageCredentials[inputId]}
 				onChange={handleCredentialChange}
 				onBlur={() => clearErrorForField(inputId)}
@@ -406,17 +471,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 			<FormErrorMessage>{errors[inputId]}</FormErrorMessage>
 		</FormControl>
 	);
-
-	const render24HourTimeOptions = () => {
-		return [...Array(24)].map((_, i) => (
-			<option
-				key={i}
-				value={`${i.toString().padStart(2, "0")}:00`}
-			>
-				{i.toString().padStart(2, "0")}:00
-			</option>
-		));
-	};
 
 	const resetBackupStorageCredentials = () => {
 		setFormValues({
@@ -436,8 +490,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		}
 	};
 
-	const handleDownloadBackup = async (e) => {
-		e.preventDefault();
+	const handleDownloadBackup = async () => {
 		const formData = new FormData();
 		formData.append("action", "simply_backitup_download_zip");
 		formData.append("nonce", nonce);
@@ -452,7 +505,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 			});
 
 			if (!response.ok) {
-				throw new Error("Something went wrong while downloading backup.");
+				return { success: false, message: "Failed to download backup." };
 			}
 
 			const blob = await response.blob();
@@ -464,34 +517,30 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 			a.click();
 			a.remove();
 			window.URL.revokeObjectURL(url);
+
+			return { success: true };
 		} catch (error) {
-			console.error("Error downloading backup:", error);
-			createAlert("Failed to download backup: " + error.message, "error");
+			return {
+				success: false,
+				message: error.message || "An error occurred during backup download.",
+			};
 		}
 	};
 
-    const handleSaveAndBackupNow = async (e) => {
-        e.preventDefault();
-        try {
-            if (savingSettings) {
-                throw new Error("Settings are being saved. Cannot save again.");
-            }
-            const response = await handleSubmit(e);
-            if (response?.success) {
-                await handleBackupNow();
-            }
-        } catch (error) {
-            console.error("Error during backup process:", error);
-            createAlert("An error occurred during backup.", "error");
-            setSavingSettings(false);
-        } finally {
-            setSavingSettings(false);
-        }
-    };
+	const handleDownloadBackupClick = async (e) => {
+		e.preventDefault();
+
+		const result = await handleDownloadBackup();
+
+		if (result.success) {
+			createAlert("Backup downloaded successfully.", "success");
+		} else {
+			createAlert(result.message, "error");
+		}
+	};
 
 	return (
 		<div
-			className="wrap"
 			style={{
 				position: "relative",
 			}}
@@ -505,55 +554,10 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 					borderRadius: "5px",
 				}}
 			>
-				<h2 style={{ marginTop: "0px" }}>Backup Settings</h2>
+				<h2 style={{ marginTop: "0px", fontSize: "20px" }}>Backup Settings</h2>
+				<hr />
 
-				{alert && (
-					<Box
-						maxW="lg"
-						style={{
-							position: "absolute",
-							top: `${scrollY}px`,
-							left: "0",
-							right: "0",
-							zIndex: "100",
-							margin: "0 auto",
-							padding: "15px",
-							boxShadow: "0 0 10px rgba(0,0,0,0.1)",
-							backgroundColor: "#fff",
-							borderRadius: "5px",
-						}}
-					>
-						<div
-							className={`notice notice-${alert.type}`}
-							style={{
-								margin: "0",
-							}}
-						>
-							<p>{alert.message}</p>
-						</div>
-					</Box>
-				)}
-
-				{lastBackupTime && (
-					<Box>
-						<p>Last backup: {lastBackupTime}</p>
-					</Box>
-				)}
-
-				{/* Download Backup Button */}
-				<Button
-					type="button"
-					className={
-						"button button-secondary" + (savingSettings ? " disabled" : "")
-					}
-					style={{ marginLeft: "10px" }}
-					onClick={handleDownloadBackup}
-					disabled={savingSettings}
-				>
-					Download Backup ZIP
-				</Button>
-
-				<form onSubmit={handleSubmit}>
+				<form>
 					{/* Frequency Setting */}
 					<FormControl
 						as="fieldset"
@@ -564,7 +568,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 						<select
 							name="backupFrequency"
 							value={formValues.backupFrequency}
-							disabled={savingSettings}
+							disabled={savingSettings || runningBackup}
 							onChange={handleInputChange}
 							onBlur={() => clearErrorForField("backupFrequency")}
 						>
@@ -585,7 +589,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 						<select
 							name="backupTime"
 							value={formValues.backupTime}
-							disabled={savingSettings}
+							disabled={savingSettings || runningBackup}
 							onChange={handleInputChange}
 							onBlur={() => clearErrorForField("backupTime")}
 						>
@@ -605,7 +609,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 							type="text"
 							name="backupEmail"
 							value={formValues.backupEmail}
-							disabled={savingSettings}
+							disabled={savingSettings || runningBackup}
 							onChange={handleInputChange}
 							onBlur={() => clearErrorForField("backupEmail")}
 						/>
@@ -622,7 +626,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 						<select
 							name="backupStorageLocation"
 							value={formValues.backupStorageLocation}
-							disabled={savingSettings}
+							disabled={savingSettings || runningBackup}
 							onChange={(e) => {
 								resetBackupStorageCredentials();
 								handleInputChange(e);
@@ -643,43 +647,50 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 					{renderCredentialFields(formValues.backupStorageLocation)}
 
 					{/* Buttons */}
-					{!backupProgress && (
-						<Box mt={3}>
-							<Button
-								type="submit"
-								className={
-									"button button-" +
-									saveButtonColor +
-									(savingSettings ? " disabled" : "")
-								}
-								disabled={savingSettings}
-							>
-								{savingSettings ? (
-									<>
-										Saving... <span class="spinner is-active"></span>
-									</>
-								) : (
-									"Save Settings"
-								)}
-							</Button>
-							<Button
-								type="button"
-								className={
-									"button button-secondary" +
-									(savingSettings ? " disabled" : "")
-								}
-								style={{ marginLeft: "10px" }}
-								onClick={handleSaveAndBackupNow}
-								disabled={savingSettings}
-							>
-								Save & Backup Now
-							</Button>
-						</Box>
-					)}
+					<Box
+						mt={3}
+						style={{ minHeight: "40px" }}
+					>
+						{!runningBackup && (
+							<>
+								<Button
+									type="button"
+									className={
+										"button button-" +
+										saveButtonColor +
+										(savingSettings ? " disabled" : "")
+									}
+									onClick={handleSaveSettings}
+									disabled={savingSettings}
+								>
+									{savingSettings ? (
+										<>
+											Saving... <span className="spinner is-active"></span>
+										</>
+									) : (
+										"Save Settings"
+									)}
+								</Button>
+								<Button
+									type="button"
+									className={
+										"button button-" +
+										saveAndBackupNowButtonColor +
+										" " +
+										(savingSettings ? " disabled" : "")
+									}
+									style={{ marginLeft: "10px" }}
+									onClick={handleSaveAndBackupNow}
+									disabled={savingSettings}
+								>
+									Save & Backup Now
+								</Button>
+							</>
+						)}
+						{/* Backup Progress */}
+						{backupProgress && <BackupProgressBar {...backupProgress} />}
+					</Box>
 				</form>
-
-				{/* Backup Progress */}
-				{backupProgress && <BackupProgessBar {...backupProgress} />}
 			</Container>
 		</div>
 	);
