@@ -5,16 +5,39 @@ namespace AMDarter\SimplyBackItUp\Controllers;
 use AMDarter\SimplyBackItUp\Service\TempZip;
 use AMDarter\SimplyBackItUp\Exceptions\InvalidBackupFileException;
 use AMDarter\SimplyBackItUp\Validators\BackupValidator;
-
-// @todo: Implement backup logs to see all the backups that have been made.
+use AMDarter\SimplyBackItUp\Controllers\Settings;
 
 class Backup
 {
-    /**
-     * Store the file name temporarily for the backup process.
-     * @var string
-     */
-    public static $tempStoreFile;
+
+    public static function logs(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have permission to perform this action.');
+        }
+        check_ajax_referer('simply_backitup_nonce', 'nonce');
+        $logs = get_option('simply_backitup_logs', []);
+        wp_send_json_success(['logs' => $logs]);
+    }
+
+    public function clearLogs(): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have permission to perform this action.');
+        }
+        check_ajax_referer('simply_backitup_nonce', 'nonce');
+        update_option('simply_backitup_logs', []);
+        wp_send_json_success(['message' => 'Logs cleared']);
+    }
+
+    protected static function log($message): void
+    {
+        $logs = get_option('simply_backitup_logs', []);
+        $date = date('Y-m-d H:i:s');
+        $logs[] = ['date' => $date, 'message' => $message];
+        update_option('simply_backitup_logs', $logs);
+        update_option('simply_backitup_last_backup', $date);
+    }
 
     public static function step1(): void
     {
@@ -23,7 +46,8 @@ class Backup
         }
         check_ajax_referer('simply_backitup_nonce', 'nonce');
         try {
-            self::$tempStoreFile = self::zipFiles();
+            $tempStoreFile = self::zipFiles();
+            set_transient('simply_backitup_temp_zip_file', $tempStoreFile, 120);
             wp_send_json_success(['message' => 'Files zipped', 'progress' => 33]);
         } catch (InvalidBackupFileException $e) {
             error_log($e->getMessage());
@@ -62,14 +86,15 @@ class Backup
             wp_die('You do not have permission to perform this action.');
         }
         check_ajax_referer('simply_backitup_nonce', 'nonce');
+
         try {
-            $tempBackupZipFile = self::$tempStoreFile;
+            $tempBackupZipFile = get_transient('simply_backitup_temp_zip_file');
             if (empty($tempBackupZipFile)) {
                 throw new \Exception('Temporary backup file not found');
             }
-            $uploadedToCloud = self::uploadToCloud($tempBackupZipFile);
+            BackupValidator::validateBackupZipFile($tempBackupZipFile);
+            $uploadedToCloud = self::uploadToCloud($tempBackupZipFile, Settings::all());
             if ($uploadedToCloud) {
-                delete_transient('simply_backitup_temp_zip_file');
                 $date = date('Y-m-d H:i:s');
                 update_option('simply_backitup_last_backup', $date);
                 wp_send_json_success([
@@ -172,12 +197,32 @@ class Backup
         return true;
     }
 
-    private static function uploadToCloud($file): bool
+    /**
+     * Upload the backup to the cloud storage.
+     * @param string $file
+     * @param array $settings
+     * @return bool
+     * @throws \Exception
+     */
+    private static function uploadToCloud(string $file, array $settings): bool
     {
+        if (empty($settings['backupStorageLocation'])) {
+            throw new \Exception('Backup storage location not set');
+        }
+        if (empty($settings['backupStorageCredentials'])) {
+            throw new \Exception('Backup storage credentials not set');
+        }
+        if (empty($settings['backupFrequency'])) {
+            throw new \Exception('Backup frequency not set');
+        }
+        if (empty($settings['backupTime'])) {
+            throw new \Exception('Backup time not set');
+        }
+
         // Implement your cloud upload logic here
         // Return true on success, false on failure
-        sleep(5); // Simulate a task taking some time
-        update_option('simply_backitup_last_backup', date('Y-m-d H:i:s'));
+        sleep(5); // Simulate a task taking some time.
+        self::log('Backup uploaded to ' . $settings['backupStorageLocation']);
         return true;
     }
 }

@@ -37,7 +37,7 @@ class SimplyBackItUp
         );
         add_action(
             'wp_ajax_simply_backitup_save_settings',
-            [\AMDarter\SimplyBackItUp\Controllers\SaveSettings::class, 'save']
+            [\AMDarter\SimplyBackItUp\Controllers\Settings::class, 'save']
         );
         add_action(
             'wp_ajax_simply_backitup_step1',
@@ -116,14 +116,8 @@ class SimplyBackItUp
             wp_localize_script('simply-backitup-admin-settings-script', 'SimplyBackItUp', [
                 'ajaxurl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('simply_backitup_nonce'),
-                'settings' => [
-                    'backupFrequency' => get_option('simply_backitup_frequency', 'daily'),
-                    'backupTime' => get_option('simply_backitup_time', '03:00'),
-                    'backupEmail' => get_option('simply_backitup_email', ''),
-                    'backupStorageLocation' => get_option('simply_backitup_backup_storage_location', ''),
-                    'lastBackupTime' => get_option('simply_backitup_last_backup', null),
-                    'backupStorageCredentials' => get_option('simply_backitup_backup_storage_credentials', [])
-                ]
+                'settings' => \AMDarter\SimplyBackItUp\Controllers\Settings::all(),
+                'pluginUrl' => plugin_dir_url(__FILE__)
             ]);
         }
     }

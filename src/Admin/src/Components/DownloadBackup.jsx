@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button } from "@chakra-ui/react";
+import { Button, Box, Text, Tooltip } from "@chakra-ui/react";
 import { useAlert } from "../context/AlertContext";
 
 const DownloadBackup = ({ ajaxUrl, nonce }) => {
@@ -20,7 +20,7 @@ const DownloadBackup = ({ ajaxUrl, nonce }) => {
 			const contentType = response.headers.get("Content-Type") || null;
 
 			if (contentType && contentType.includes("application/json")) {
-                // Handle JSON response
+				// Handle JSON response
 				const json = await response.json();
 				const message =
 					json.data?.message ||
@@ -72,29 +72,43 @@ const DownloadBackup = ({ ajaxUrl, nonce }) => {
 	};
 
 	return (
-		<div>
-			<Button
-				type="button"
-				className={
-					"button button-secondary" + (downloadingBackup ? " disabled" : "")
-				}
-				style={{ marginLeft: "10px" }}
-				onClick={handleDownloadBackupClick}
-				disabled={downloadingBackup}
+		<Box mt={4} textAlign={"center"}>
+			{/* Explanation Text */}
+			<Text
+				fontSize="sm"
+				color="gray.600"
+				mb={2}
 			>
-				{downloadingBackup ? (
-					<>
-						Downloading...{" "}
-						<span
-							className="spinner is-active"
-							style={{ display: "inline-block" }}
-						></span>
-					</>
-				) : (
-					"Download Backup"
-				)}
-			</Button>
-		</div>
+				Create a new backup at this moment. It does not download an existing backup from your cloud storage.
+			</Text>
+
+			{/* Download Backup Button with Tooltip */}
+			<Tooltip
+				label="This action will extract a new backup right now and download it. It does not retrieve an existing backup from cloud storage."
+				aria-label="Download a new backup explanation"
+			>
+				<Button
+					type="button"
+					size="sm"
+					colorScheme="blue"
+					variant="solid"
+					onClick={handleDownloadBackupClick}
+					disabled={downloadingBackup}
+				>
+					{downloadingBackup ? (
+						<>
+							Creating & Downloading...
+							<span
+								className="spinner is-active"
+								style={{ display: "inline-block", marginLeft: "5px" }}
+							></span>
+						</>
+					) : (
+						"Download New Backup Now"
+					)}
+				</Button>
+			</Tooltip>
+		</Box>
 	);
 };
 

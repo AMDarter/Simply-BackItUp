@@ -4,7 +4,7 @@ namespace AMDarter\SimplyBackItUp\Controllers;
 
 use Respect\Validation\Validator as v;
 
-class SaveSettings
+class Settings
 {
 
     protected static function configs(): array
@@ -112,6 +112,48 @@ class SaveSettings
                     ],
                 ]
             ],
+            'backupFiles' => [
+                'validator' => v::optional(v::boolVal()),
+                'option_name' => 'simply_backitup_backup_files',
+                'error_message' => 'Invalid backup files value.',
+            ],
+            'backupDatabase' => [
+                'validator' => v::optional(v::boolVal()),
+                'option_name' => 'simply_backitup_backup_database',
+                'error_message' => 'Invalid backup database value.',
+            ],
+            'backupPlugins' => [
+                'validator' => v::optional(v::boolVal()),
+                'option_name' => 'simply_backitup_backup_plugins',
+                'error_message' => 'Invalid backup plugins value.',
+            ],
+            'backupThemes' => [
+                'validator' => v::optional(v::boolVal()),
+                'option_name' => 'simply_backitup_backup_themes',
+                'error_message' => 'Invalid backup themes value.',
+            ],
+            'backupUploads' => [
+                'validator' => v::optional(v::boolVal()),
+                'option_name' => 'simply_backitup_backup_uploads',
+                'error_message' => 'Invalid backup uploads value.',
+            ],
+        ];
+    }
+
+    public static function all(): array
+    {
+        return [
+            'backupFrequency' => get_option('simply_backitup_frequency', 'daily'),
+            'backupTime' => get_option('simply_backitup_time', '03:00'),
+            'backupEmail' => get_option('simply_backitup_email', ''),
+            'backupStorageLocation' => get_option('simply_backitup_backup_storage_location', ''),
+            'backupStorageCredentials' => get_option('simply_backitup_backup_storage_credentials', []),
+            'backupFiles' => get_option('simply_backitup_backup_files', default_value: true),
+            'backupDatabase' => get_option('simply_backitup_backup_database', true),
+            'backupPlugins' => get_option('simply_backitup_backup_plugins', true),
+            'backupThemes' => get_option('simply_backitup_backup_themes', true),
+            'backupUploads' => get_option('simply_backitup_backup_uploads', true),
+            'lastBackupTime' => get_option('simply_backitup_last_backup', null),
         ];
     }
 
@@ -144,6 +186,12 @@ class SaveSettings
             if (isset($config['items'])) {
                 foreach ($config['items'] as $itemKey => $itemConfig) {
                     $itemValue = $value[$itemKey] ?? null;
+                    if(!is_object($itemConfig['validator'])) {
+                        continue;
+                    }
+                    if(!method_exists($itemConfig['validator'], 'validate')) {
+                        continue;
+                    }
                     if (!$itemConfig['validator']->validate($itemValue)) {
                         $validationErrors[$itemKey] = $itemConfig['error_message'];
                         // Set the parent key as an error
@@ -153,8 +201,8 @@ class SaveSettings
                     }
                 }
             }
-            if (!empty($value)) {
-                $sanitizedValue = is_callable($config['sanitizer']) ? $config['sanitizer']($value) : $value;
+            if (!empty($value) && array_key_exists('sanitizer', $config) && is_callable($config['sanitizer'])) {
+                $sanitizedValue = $config['sanitizer']($value);
             } else {
                 $sanitizedValue = $value;
             }

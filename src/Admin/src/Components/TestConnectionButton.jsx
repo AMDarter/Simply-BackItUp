@@ -4,7 +4,9 @@ const TestConnectionButton = ({ platform, ...props }) => {
 	return (
 		<Button
 			type="button"
-			className={"button button-secondary" + (props?.disabled ? " disabled" : "")}
+            size='sm'
+			colorScheme="blue"
+            variant='outline'
 			style={{ marginTop: "10px" }}
             {...props}
 		>

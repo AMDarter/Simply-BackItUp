@@ -9,6 +9,8 @@ import {
 	FormErrorMessage,
 	FormLabel,
 	Input,
+	SimpleGrid,
+	Heading,
 } from "@chakra-ui/react";
 import {
 	recursiveAppendFormData,
@@ -47,6 +49,11 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 			...defaultBackupStorageCredentials,
 			...settings.backupStorageCredentials,
 		},
+		backupFiles: settings.backupFiles || true,
+		backupDatabase: settings.backupDatabase || true,
+		backupPlugins: settings.backupPlugins || true,
+		backupThemes: settings.backupThemes || true,
+		backupUploads: settings.backupUploads || true,
 	});
 
 	const [errors, setErrors] = useState({});
@@ -54,21 +61,8 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 	const [backupProgress, setBackupProgress] = useState(null);
 	const [savingSettings, setSavingSettings] = useState(false);
 	const [runningBackup, setRunningBackup] = useState(false);
-	const [saveButtonColor, setSaveButtonColor] = useState("primary");
-	const [saveAndBackupNowButtonColor, setSaveAndBackupNowButtonColor] =
-		useState("secondary");
 	const { set: setTimeout } = useTimeoutManager();
 	const { setLastBackupTime } = useLastBackup();
-
-	const setButtonColor = (buttonType, color) => {
-		if (buttonType === "save") {
-			setSaveButtonColor(color);
-			setTimeout(() => setSaveButtonColor("primary"), 1000);
-		} else if (buttonType === "saveAndBackupNow") {
-			setSaveAndBackupNowButtonColor(color);
-			setTimeout(() => setSaveAndBackupNowButtonColor("secondary"), 1000);
-		}
-	};
 
 	const validateForm = () => {
 		const errors = {};
@@ -156,10 +150,10 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 	};
 
 	const handleInputChange = (event) => {
-		const { name, value } = event.target;
+		const { name, type, value, checked } = event.target;
 		setFormValues((prevValues) => ({
 			...prevValues,
-			[name]: value,
+			[name]: type === "checkbox" ? checked : value,
 		}));
 	};
 
@@ -182,7 +176,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 
 		if (saveResult.success) {
 			createAlert("Settings saved successfully.", "success");
-			setButtonColor("save", "success");
 		} else {
 			createAlert(
 				saveResult.message || "An error occurred while saving settings.",
@@ -194,7 +187,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 					...saveResult.validationErrors,
 				}));
 			}
-			setButtonColor("save", "error");
 		}
 
 		setSavingSettings(false);
@@ -250,7 +242,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		});
 
 		if (!backupProgressResult.success) {
-			return { success: false, message: "Failed at step 1" };
+			return { success: false, message: backupProgressResult.message };
 		}
 
 		setBackupProgress(backupProgressResult.progress);
@@ -264,7 +256,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		});
 
 		if (!backupProgressResult.success) {
-			return { success: false, message: "Failed at step 2" };
+			return { success: false, message: backupProgressResult.message };
 		}
 
 		setBackupProgress(backupProgressResult.progress);
@@ -278,7 +270,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		});
 
 		if (!backupProgressResult.success) {
-			return { success: false, message: "Failed at step 3" };
+			return { success: false, message: backupProgressResult.message };
 		}
 
 		setBackupProgress(backupProgressResult.progress);
@@ -305,7 +297,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 					...saveResult.validationErrors,
 				}));
 			}
-			setButtonColor("saveAndBackupNow", "error");
 			setSavingSettings(false);
 			setRunningBackup(false);
 			return;
@@ -467,6 +458,15 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 				value={formValues.backupStorageCredentials[inputId]}
 				onChange={handleCredentialChange}
 				onBlur={() => clearErrorForField(inputId)}
+				borderColor="gray.300"
+				focusBorderColor="blue.500"
+				style={{
+					width: "100%",
+					maxWidth: "26rem",
+					padding: "8px",
+					borderRadius: "4px",
+					border: "1px solid #CBD5E0",
+				}}
 			/>
 			<FormErrorMessage>{errors[inputId]}</FormErrorMessage>
 		</FormControl>
@@ -540,159 +540,251 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 	};
 
 	return (
-		<div
-			style={{
-				position: "relative",
-			}}
-		>
-			<Container
-				maxW="lg"
-				style={{
-					position: "relative",
-					padding: "20px",
-					backgroundColor: "#f9f9f9",
-					borderRadius: "5px",
-				}}
-			>
-				<h2 style={{ marginTop: "0px", fontSize: "20px" }}>Backup Settings</h2>
+		<>
+			<Box mb={4}>
+				<Heading
+					as="h2"
+					mb={2}
+					mt={0}
+					color="#082C44"
+					style={{
+						marginTop: "0px",
+						fontSize: "22px",
+						fontWeight: "bold",
+						color: "#2D3748",
+					}}
+				>
+					Backup Settings
+				</Heading>
 				<hr />
+			</Box>
 
-				<form>
-					{/* Frequency Setting */}
-					<FormControl
-						as="fieldset"
-						mt={3}
-						isInvalid={!!errors.backupFrequency}
+			<form>
+				{/* Frequency Setting */}
+				<FormControl
+					as="fieldset"
+					mt={4}
+					isInvalid={!!errors.backupFrequency}
+				>
+					<FormLabel fontWeight="medium">Backup Frequency</FormLabel>
+					<select
+						name="backupFrequency"
+						value={formValues.backupFrequency}
+						disabled={savingSettings || runningBackup}
+						onChange={handleInputChange}
+						onBlur={() => clearErrorForField("backupFrequency")}
+						style={{
+							width: "100%",
+							maxWidth: "26rem",
+							padding: "8px",
+							borderRadius: "4px",
+							border: "1px solid #CBD5E0",
+						}}
 					>
-						<FormLabel>Backup Frequency</FormLabel>
-						<select
-							name="backupFrequency"
-							value={formValues.backupFrequency}
+						<option value="daily">Daily</option>
+						<option value="weekly">Weekly</option>
+						<option value="monthly">Monthly</option>
+					</select>
+					<FormErrorMessage>{errors.backupFrequency}</FormErrorMessage>
+				</FormControl>
+
+				{/* Time Setting */}
+				<FormControl
+					as="fieldset"
+					mt={4}
+					isInvalid={!!errors.backupTime}
+				>
+					<FormLabel fontWeight="medium">Backup Time</FormLabel>
+					<select
+						name="backupTime"
+						value={formValues.backupTime}
+						disabled={savingSettings || runningBackup}
+						onChange={handleInputChange}
+						onBlur={() => clearErrorForField("backupTime")}
+						style={{
+							width: "100%",
+							maxWidth: "26rem",
+							padding: "8px",
+							borderRadius: "4px",
+							border: "1px solid #CBD5E0",
+						}}
+					>
+						{render24HourTimeOptions()}
+					</select>
+					<FormErrorMessage>{errors.backupTime}</FormErrorMessage>
+				</FormControl>
+
+				{/* Email Setting */}
+				<FormControl
+					as="fieldset"
+					mt={4}
+					isInvalid={!!errors.backupEmail}
+				>
+					<FormLabel fontWeight="medium">Backup Email</FormLabel>
+					<Input
+						type="text"
+						name="backupEmail"
+						value={formValues.backupEmail}
+						disabled={savingSettings || runningBackup}
+						onChange={handleInputChange}
+						onBlur={() => clearErrorForField("backupEmail")}
+						borderColor="gray.300"
+						focusBorderColor="blue.500"
+						style={{
+							width: "100%",
+							maxWidth: "26rem",
+							padding: "8px",
+							borderRadius: "4px",
+							border: "1px solid #CBD5E0",
+						}}
+					/>
+					<FormErrorMessage>{errors.backupEmail}</FormErrorMessage>
+				</FormControl>
+
+				{/* Storage Location Setting */}
+				<FormControl
+					as="fieldset"
+					mt={4}
+					isInvalid={!!errors.backupStorageLocation}
+				>
+					<FormLabel fontWeight="medium">Storage Location</FormLabel>
+					<select
+						name="backupStorageLocation"
+						value={formValues.backupStorageLocation}
+						disabled={savingSettings || runningBackup}
+						onChange={(e) => {
+							resetBackupStorageCredentials();
+							handleInputChange(e);
+						}}
+						onBlur={() => clearErrorForField("backupStorageLocation")}
+						style={{
+							width: "100%",
+							maxWidth: "26rem",
+							padding: "8px",
+							borderRadius: "4px",
+							border: "1px solid #CBD5E0",
+						}}
+					>
+						<option value="">Select</option>
+						<option value="Google Drive">Google Drive</option>
+						<option value="Dropbox">Dropbox</option>
+						<option value="OneDrive">OneDrive</option>
+						<option value="Amazon S3">Amazon S3</option>
+						<option value="FTP">FTP</option>
+					</select>
+					<FormErrorMessage>{errors.backupStorageLocation}</FormErrorMessage>
+				</FormControl>
+
+				{/* Render Credential Fields Based on Selection */}
+				{renderCredentialFields(formValues.backupStorageLocation)}
+
+				{/* Settings Grid */}
+				<SimpleGrid
+					columns={[1, 2]}
+					spacing={5}
+					mt={5}
+				>
+					{/* Backup Files Setting */}
+					<FormControl as="fieldset">
+						<FormLabel fontWeight="medium">Backup Files</FormLabel>
+						<input
+							type="checkbox"
+							name="backupFiles"
+							checked={formValues.backupFiles}
 							disabled={savingSettings || runningBackup}
 							onChange={handleInputChange}
-							onBlur={() => clearErrorForField("backupFrequency")}
-						>
-							<option value="daily">Daily</option>
-							<option value="weekly">Weekly</option>
-							<option value="monthly">Monthly</option>
-						</select>
-						<FormErrorMessage>{errors.backupFrequency}</FormErrorMessage>
-					</FormControl>
-
-					{/* Time Setting */}
-					<FormControl
-						as="fieldset"
-						mt={3}
-						isInvalid={!!errors.backupTime}
-					>
-						<FormLabel>Backup Time</FormLabel>
-						<select
-							name="backupTime"
-							value={formValues.backupTime}
-							disabled={savingSettings || runningBackup}
-							onChange={handleInputChange}
-							onBlur={() => clearErrorForField("backupTime")}
-						>
-							{render24HourTimeOptions()}
-						</select>
-						<FormErrorMessage>{errors.backupTime}</FormErrorMessage>
-					</FormControl>
-
-					{/* Email Setting */}
-					<FormControl
-						as="fieldset"
-						mt={3}
-						isInvalid={!!errors.backupEmail}
-					>
-						<FormLabel>Backup Email</FormLabel>
-						<Input
-							type="text"
-							name="backupEmail"
-							value={formValues.backupEmail}
-							disabled={savingSettings || runningBackup}
-							onChange={handleInputChange}
-							onBlur={() => clearErrorForField("backupEmail")}
 						/>
-						<FormErrorMessage>{errors.backupEmail}</FormErrorMessage>
 					</FormControl>
 
-					{/* Storage Location Setting */}
-					<FormControl
-						as="fieldset"
-						mt={3}
-						isInvalid={!!errors.backupStorageLocation}
-					>
-						<FormLabel>Storage Location</FormLabel>
-						<select
-							name="backupStorageLocation"
-							value={formValues.backupStorageLocation}
+					{/* Backup Database Setting */}
+					<FormControl as="fieldset">
+						<FormLabel fontWeight="medium">Backup Database</FormLabel>
+						<input
+							type="checkbox"
+							name="backupDatabase"
+							checked={formValues.backupDatabase}
 							disabled={savingSettings || runningBackup}
-							onChange={(e) => {
-								resetBackupStorageCredentials();
-								handleInputChange(e);
-							}}
-							onBlur={() => clearErrorForField("backupStorageLocation")}
-						>
-							<option value="">Select</option>
-							<option value="Google Drive">Google Drive</option>
-							<option value="Dropbox">Dropbox</option>
-							<option value="OneDrive">OneDrive</option>
-							<option value="Amazon S3">Amazon S3</option>
-							<option value="FTP">FTP</option>
-						</select>
-						<FormErrorMessage>{errors.backupStorageLocation}</FormErrorMessage>
+							onChange={handleInputChange}
+						/>
 					</FormControl>
 
-					{/* Render Credential Fields Based on Selection */}
-					{renderCredentialFields(formValues.backupStorageLocation)}
+					{/* Backup Plugins Setting */}
+					<FormControl as="fieldset">
+						<FormLabel fontWeight="medium">Backup Plugins</FormLabel>
+						<input
+							type="checkbox"
+							name="backupPlugins"
+							checked={formValues.backupPlugins}
+							disabled={savingSettings || runningBackup}
+							onChange={handleInputChange}
+						/>
+					</FormControl>
 
-					{/* Buttons */}
-					<Box
-						mt={3}
-						style={{ minHeight: "40px" }}
-					>
-						{!runningBackup && (
-							<>
-								<Button
-									type="button"
-									className={
-										"button button-" +
-										saveButtonColor +
-										(savingSettings ? " disabled" : "")
-									}
-									onClick={handleSaveSettings}
-									disabled={savingSettings}
-								>
-									{savingSettings ? (
-										<>
-											Saving... <span className="spinner is-active"></span>
-										</>
-									) : (
-										"Save Settings"
-									)}
-								</Button>
-								<Button
-									type="button"
-									className={
-										"button button-" +
-										saveAndBackupNowButtonColor +
-										" " +
-										(savingSettings ? " disabled" : "")
-									}
-									style={{ marginLeft: "10px" }}
-									onClick={handleSaveAndBackupNow}
-									disabled={savingSettings}
-								>
-									Save & Backup Now
-								</Button>
-							</>
-						)}
-						{/* Backup Progress */}
-						{backupProgress && <BackupProgressBar {...backupProgress} />}
-					</Box>
-				</form>
-			</Container>
-		</div>
+					{/* Backup Themes Setting */}
+					<FormControl as="fieldset">
+						<FormLabel fontWeight="medium">Backup Themes</FormLabel>
+						<input
+							type="checkbox"
+							name="backupThemes"
+							checked={formValues.backupThemes}
+							disabled={savingSettings || runningBackup}
+							onChange={handleInputChange}
+						/>
+					</FormControl>
+
+					{/* Backup Uploads Setting */}
+					<FormControl as="fieldset">
+						<FormLabel fontWeight="medium">Backup Uploads</FormLabel>
+						<input
+							type="checkbox"
+							name="backupUploads"
+							checked={formValues.backupUploads}
+							disabled={savingSettings || runningBackup}
+							onChange={handleInputChange}
+						/>
+					</FormControl>
+				</SimpleGrid>
+
+				{/* Buttons */}
+				<Box
+					mt={6}
+					style={{ minHeight: "60px" }} // Avoids layout shift.
+				>
+					{!runningBackup && (
+						<div style={{ textAlign: "center" }}>
+							<Button
+								type="button"
+								size="sm"
+								colorScheme="blue"
+								onClick={handleSaveSettings}
+								isDisabled={savingSettings}
+								m={3}
+							>
+								{savingSettings ? (
+									<>
+										Saving... <span className="spinner is-active"></span>
+									</>
+								) : (
+									"Save Settings"
+								)}
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								colorScheme="teal"
+								onClick={handleSaveAndBackupNow}
+								isDisabled={savingSettings}
+								m={3}
+							>
+								Save & Backup Now
+							</Button>
+						</div>
+					)}
+					{/* Backup Progress */}
+					{backupProgress && <BackupProgressBar {...backupProgress} />}
+				</Box>
+			</form>
+		</>
 	);
 };
 

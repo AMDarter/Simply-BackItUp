@@ -18,7 +18,6 @@ class BackupValidator
      */
     public static function validateBackupZipFile($filename): bool
     {
-
         self::validateFileName($filename);
         self::validateFileExists($filename);
         self::validateFileIsReadable($filename);
@@ -29,7 +28,6 @@ class BackupValidator
         self::validateZipIsNotEmpty($filename);
         self::validateZipContainsEssentialFiles($filename);
         self::validateDangerousFiles($filename);
-
         return true;
     }
 
