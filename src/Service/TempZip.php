@@ -157,7 +157,7 @@ class TempZip
         if ($sizeLimitBytes === false) {
             throw new \Exception("Failed to determine free space on disk.");
         }
-        error_log('Free space: ' . $sizeLimitBytes);
+        
         $excedesSizeLimit = $this->excedesSizeLimit($sourcePath, $sizeLimitBytes);
         $sizeLimitMb = $sizeLimitBytes / 1024 / 1024;
 
