@@ -1,26 +1,26 @@
 import "./App.css";
-import { LastBackupProvider } from "./context/LastBackupContext";
 import { ChakraProvider } from "@chakra-ui/react";
 import { AlertProvider } from "./context/AlertContext";
 import { Dashboard } from "./Components/allComponents";
+import { SettingsProvider } from "./context/SettingsContext";
+import { BackupHistoryProvider } from "./context/BackupHistoryContext";
 
-function App({ data }) {
+function App() {
 	return (
 		<div
-			className="wrap"
 			style={{
 				backgroundColor: "#F7FAFC",
 				borderRadius: "5px",
 			}}
 		>
 			<ChakraProvider>
-				<AlertProvider>
-					<LastBackupProvider
-						defaultLastBackupTime={data?.settings?.lastBackupTime || null}
-					>
-						<Dashboard data={data} />
-					</LastBackupProvider>
-				</AlertProvider>
+				<SettingsProvider>
+					<AlertProvider>
+						<BackupHistoryProvider>
+							<Dashboard />
+						</BackupHistoryProvider>
+					</AlertProvider>
+				</SettingsProvider>
 			</ChakraProvider>
 		</div>
 	);

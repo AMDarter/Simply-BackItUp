@@ -1,10 +1,14 @@
 import React, { useState } from "react";
-import { Button, Box, Text, Tooltip } from "@chakra-ui/react";
+import { Button, Box, Tooltip } from "@chakra-ui/react";
 import { useAlert } from "../context/AlertContext";
+import { useAjax } from "../context/AjaxContext";
+import { useBackupHistory } from "../context/BackupHistoryContext";
 
-const DownloadBackup = ({ ajaxUrl, nonce }) => {
+const DownloadBackup = () => {
+	const { ajaxUrl, nonce } = useAjax();
 	const [downloadingBackup, setDownloadingBackup] = useState(false);
 	const { createAlert } = useAlert();
+	const { fetchBackups } = useBackupHistory();
 
 	const handleDownloadBackup = async () => {
 		const formData = new FormData();
@@ -61,10 +65,9 @@ const DownloadBackup = ({ ajaxUrl, nonce }) => {
 
 		const result = await handleDownloadBackup();
 
-		console.log(result);
-
 		if (result.success) {
 			createAlert(result.message || "Downloading backup...", "success");
+			fetchBackups(); // Refresh backup history after backup download
 		} else {
 			createAlert(result.message, "error");
 		}
@@ -72,19 +75,13 @@ const DownloadBackup = ({ ajaxUrl, nonce }) => {
 	};
 
 	return (
-		<Box mt={4} textAlign={"center"}>
-			{/* Explanation Text */}
-			<Text
-				fontSize="sm"
-				color="gray.600"
-				mb={2}
-			>
-				Create a new backup at this moment. It does not download an existing backup from your cloud storage.
-			</Text>
-
+		<Box
+			mt={4}
+			textAlign={"center"}
+		>
 			{/* Download Backup Button with Tooltip */}
 			<Tooltip
-				label="This action will extract a new backup right now and download it. It does not retrieve an existing backup from cloud storage."
+				label="This action will extract a new backup right now and download it."
 				aria-label="Download a new backup explanation"
 			>
 				<Button
@@ -93,19 +90,10 @@ const DownloadBackup = ({ ajaxUrl, nonce }) => {
 					colorScheme="blue"
 					variant="solid"
 					onClick={handleDownloadBackupClick}
-					disabled={downloadingBackup}
+					isLoading={downloadingBackup}
+					loadingText="Working"
 				>
-					{downloadingBackup ? (
-						<>
-							Creating & Downloading...
-							<span
-								className="spinner is-active"
-								style={{ display: "inline-block", marginLeft: "5px" }}
-							></span>
-						</>
-					) : (
-						"Download New Backup Now"
-					)}
+					Download
 				</Button>
 			</Tooltip>
 		</Box>

@@ -9,9 +9,14 @@ Author URI: http://yourwebsite.com/
 License: MIT
 */
 
+use Microsoft\Graph\Model\Call;
+
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
+
+use \AMDarter\SimplyBackItUp\Controllers\Backup;
+use \AMDarter\SimplyBackItUp\Controllers\Settings;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -25,8 +30,62 @@ class SimplyBackItUp
         $this->addActions();
     }
 
+    public function ajaxMiddleware($next): void
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die('You do not have permission to perform this action.');
+        }
+        check_ajax_referer('simply_backitup_nonce', 'nonce');
+        if (!is_callable($next)) {
+            wp_die('Invalid action');
+        }
+        call_user_func($next);
+    }
+
     protected function addActions(): void
     {
+        add_action(
+            'wp_ajax_simply_backitup_all_history',
+            function () {
+                $this->ajaxMiddleware([Backup::class, 'allHistory']);
+            }
+        );
+        add_action(
+            'wp_ajax_simply_backitup_save_settings',
+            function () {
+                $this->ajaxMiddleware([Settings::class, 'save']);
+            }
+        );
+        add_action(
+            'wp_ajax_simply_backitup_all_settings',
+            function () {
+                $this->ajaxMiddleware([Settings::class, 'index']);
+            }
+        );
+        add_action(
+            'wp_ajax_simply_backitup_step1',
+            function () {
+                $this->ajaxMiddleware([Backup::class, 'step1']);
+            }
+        );
+        add_action(
+            'wp_ajax_simply_backitup_step2',
+            function () {
+                $this->ajaxMiddleware([Backup::class, 'step2']);
+            }
+        );
+        add_action(
+            'wp_ajax_simply_backitup_step3',
+            function () {
+                $this->ajaxMiddleware([Backup::class, 'step3']);
+            }
+        );
+        add_action(
+            'wp_ajax_simply_backitup_download_backup_zip',
+            function () {
+                $this->ajaxMiddleware([Backup::class, 'downloadBackupZip']);
+            }
+        );
         add_action(
             'admin_menu',
             [$this, 'addAdminMenu']
@@ -34,26 +93,6 @@ class SimplyBackItUp
         add_action(
             'admin_enqueue_scripts',
             [$this, 'enqueueAdminScripts']
-        );
-        add_action(
-            'wp_ajax_simply_backitup_save_settings',
-            [\AMDarter\SimplyBackItUp\Controllers\Settings::class, 'save']
-        );
-        add_action(
-            'wp_ajax_simply_backitup_step1',
-            [\AMDarter\SimplyBackItUp\Controllers\Backup::class, 'step1']
-        );
-        add_action(
-            'wp_ajax_simply_backitup_step2',
-            [\AMDarter\SimplyBackItUp\Controllers\Backup::class, 'step2']
-        );
-        add_action(
-            'wp_ajax_simply_backitup_step3',
-            [\AMDarter\SimplyBackItUp\Controllers\Backup::class, 'step3']
-        );
-        add_action(
-            'wp_ajax_simply_backitup_download_backup_zip',
-            [\AMDarter\SimplyBackItUp\Controllers\Backup::class, 'downloadBackupZip']
         );
     }
 
@@ -71,7 +110,7 @@ class SimplyBackItUp
     public function addAdminMenu(): void
     {
         add_menu_page('BackItUp', 'BackItUp', 'manage_options', 'simply-backitup', function () {
-            echo '<div id="simply-backitup-settings"></div>';
+            echo '<div id="simply-backitup-root"></div>';
         });
     }
 
@@ -83,21 +122,21 @@ class SimplyBackItUp
                 if (function_exists('wp_enqueue_module')) {
                     $wp_enqueue_module_function = "wp_enqueue_module";
                     $wp_enqueue_module_function(
-                        'simply-backitup-admin-settings-script',
+                        'simply-backitup-admin-script',
                         plugin_dir_url(__FILE__) . 'src/Admin/dist/' . basename($jsFiles[0]),
                         [],
                         null
                     );
                 } else {
                     wp_enqueue_script(
-                        'simply-backitup-admin-settings-script',
+                        'simply-backitup-admin-script',
                         plugin_dir_url(__FILE__) . 'src/Admin/dist/' . basename($jsFiles[0]),
                         [],
                         null,
                         true
                     );
                     add_filter('script_loader_tag', function ($tag, $handle) {
-                        if ($handle === 'simply-backitup-admin-settings-script') {
+                        if ($handle === 'simply-backitup-admin-script') {
                             return str_replace(' src=', ' type="module" src=', $tag);
                         }
                         return $tag;
@@ -107,16 +146,15 @@ class SimplyBackItUp
             $cssFiles = glob(plugin_dir_path(__FILE__) . 'src/Admin/dist/*.css');
             if (!empty($cssFiles)) {
                 wp_enqueue_style(
-                    'simply-backitup-admin-settings-style',
+                    'simply-backitup-admin-style',
                     plugin_dir_url(__FILE__) . 'src/Admin/dist/' . basename($cssFiles[0]),
                     [],
                     null
                 );
             }
-            wp_localize_script('simply-backitup-admin-settings-script', 'SimplyBackItUp', [
-                'ajaxurl' => admin_url('admin-ajax.php'),
+            wp_localize_script('simply-backitup-admin-script', 'SimplyBackItUp', [
+                'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('simply_backitup_nonce'),
-                'settings' => \AMDarter\SimplyBackItUp\Controllers\Settings::all(),
                 'pluginUrl' => plugin_dir_url(__FILE__)
             ]);
         }

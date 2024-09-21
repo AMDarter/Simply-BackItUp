@@ -1,4 +1,9 @@
-#simply-backitup-settings #backup-now-progress-container {
+#wpcontent {
+    padding-left: 0px;
+    background-color: #F7FAFC;
+}
+
+#simply-backitup-root #backup-now-progress-container {
 	margin: 20px 0;
 	padding: 10px;
 	border: 1px solid #ccc;
@@ -7,15 +12,15 @@
 }
 
 /* Success Button */
-#simply-backitup-settings .button.button-success {
+#simply-backitup-root .button.button-success {
 	background-color: #46b450;
 	border-color: #46b450;
 	color: #ffffff;
 }
 
-#simply-backitup-settings .button.button-success:hover,
-#simply-backitup-settings .button.button-success:focus,
-#simply-backitup-settings .button.button-success:active
+#simply-backitup-root .button.button-success:hover,
+#simply-backitup-root .button.button-success:focus,
+#simply-backitup-root .button.button-success:active
 {
 	background-color: #3ca544;
 	border-color: #3ca544;
@@ -23,15 +28,15 @@
 }
 
 /* Error Button */
-#simply-backitup-settings .button.button-error {
+#simply-backitup-root .button.button-error {
 	background-color: #d63638;
 	border-color: #d63638;
 	color: #ffffff;
 }
 
-#simply-backitup-settings .button.button-error:hover,
-#simply-backitup-settings .button.button-error:focus,
-#simply-backitup-settings .button.button-error:active 
+#simply-backitup-root .button.button-error:hover,
+#simply-backitup-root .button.button-error:focus,
+#simply-backitup-root .button.button-error:active 
 {
 	background-color: #b82b2c;
 	border-color: #b82b2c;

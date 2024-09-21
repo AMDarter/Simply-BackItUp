@@ -1,4 +1,4 @@
-import { Progress } from "@chakra-ui/react";
+import { Progress, Spinner, Center, HStack } from "@chakra-ui/react";
 
 const BackupProgressBar = ({ value, message }) => {
 	return (
@@ -9,12 +9,14 @@ const BackupProgressBar = ({ value, message }) => {
 				max={100}
 				min={0}
 				size="md"
+                style={{ borderRadius: "5px" }}
 			></Progress>
-			<div
-				className={value < 100 ? "spinner is-active" : ""}
-				style={{ display: "inline-block" }}
-			></div>
-			{message}
+			<HStack mt={3}>
+				<Center>
+					<Spinner />
+					<span style={{ marginLeft: "5px" }}>{message}</span>
+				</Center>
+			</HStack>
 		</div>
 	);
 };

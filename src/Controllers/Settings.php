@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace AMDarter\SimplyBackItUp\Controllers;
 
@@ -142,29 +142,62 @@ class Settings
 
     public static function all(): array
     {
+        $backupStorageCredentials = get_option('simply_backitup_backup_storage_credentials', []);
+
+        // Sanitize storage credentials array if it is an array
+        $sanitizedBackupStorageCredentials = is_array($backupStorageCredentials)
+            ? array_map('sanitize_text_field', $backupStorageCredentials)
+            : [];
+
+        // Sanitize last backup time
+        $lastBackupTime = get_option('simply_backitup_last_backup', null);
+        if (is_string($lastBackupTime) && strtotime($lastBackupTime) !== false) {
+            $lastBackupTime = sanitize_text_field($lastBackupTime);
+        } else {
+            $lastBackupTime = null;
+        }
+
         return [
-            'backupFrequency' => get_option('simply_backitup_frequency', 'daily'),
-            'backupTime' => get_option('simply_backitup_time', '03:00'),
-            'backupEmail' => get_option('simply_backitup_email', ''),
-            'backupStorageLocation' => get_option('simply_backitup_backup_storage_location', ''),
-            'backupStorageCredentials' => get_option('simply_backitup_backup_storage_credentials', []),
-            'backupFiles' => get_option('simply_backitup_backup_files', default_value: true),
-            'backupDatabase' => get_option('simply_backitup_backup_database', true),
-            'backupPlugins' => get_option('simply_backitup_backup_plugins', true),
-            'backupThemes' => get_option('simply_backitup_backup_themes', true),
-            'backupUploads' => get_option('simply_backitup_backup_uploads', true),
-            'lastBackupTime' => get_option('simply_backitup_last_backup', null),
+            'backupFrequency' => sanitize_text_field(
+                get_option('simply_backitup_frequency', 'daily')
+            ),
+            'backupTime' => sanitize_text_field(
+                get_option('simply_backitup_time', '03:00')
+            ),
+            'backupEmail' => sanitize_email(
+                get_option('simply_backitup_email', '')
+            ),
+            'backupStorageLocation' => sanitize_text_field(
+                get_option('simply_backitup_backup_storage_location', '')
+            ),
+            'backupStorageCredentials' => $sanitizedBackupStorageCredentials,
+            'backupFiles' => rest_sanitize_boolean(
+                get_option('simply_backitup_backup_files', true)
+            ),
+            'backupDatabase' => rest_sanitize_boolean(
+                get_option('simply_backitup_backup_database', true)
+            ),
+            'backupPlugins' => rest_sanitize_boolean(
+                get_option('simply_backitup_backup_plugins', true)
+            ),
+            'backupThemes' => rest_sanitize_boolean(
+                get_option('simply_backitup_backup_themes', true)
+            ),
+            'backupUploads' => rest_sanitize_boolean(
+                get_option('simply_backitup_backup_uploads', true)
+            ),
+            'lastBackupTime' => $lastBackupTime,
         ];
+    }
+
+    public static function index(): void
+    {
+        $settings = self::all();
+        wp_send_json_success($settings);
     }
 
     public static function save(): void
     {
-        if (!current_user_can('manage_options')) {
-            wp_die('You do not have permission to perform this action.');
-        }
-
-        check_ajax_referer('simply_backitup_nonce', 'nonce');
-
         $postArray = $_POST ?? [];
 
         $settingsConfig = self::configs();
@@ -186,10 +219,10 @@ class Settings
             if (isset($config['items'])) {
                 foreach ($config['items'] as $itemKey => $itemConfig) {
                     $itemValue = $value[$itemKey] ?? null;
-                    if(!is_object($itemConfig['validator'])) {
+                    if (!is_object($itemConfig['validator'])) {
                         continue;
                     }
-                    if(!method_exists($itemConfig['validator'], 'validate')) {
+                    if (!method_exists($itemConfig['validator'], 'validate')) {
                         continue;
                     }
                     if (!$itemConfig['validator']->validate($itemValue)) {
@@ -246,5 +279,4 @@ class Settings
         }
         return sanitize_text_field($data);
     }
-
 }

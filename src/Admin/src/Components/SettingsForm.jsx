@@ -1,16 +1,16 @@
-import React, { useState } from "react";
-import PropTypes from "prop-types";
+import React, { useState, useEffect } from "react";
 import { BackupProgressBar, TestConnectionButton } from "./allComponents";
 import {
 	Box,
 	Button,
-	Container,
 	FormControl,
 	FormErrorMessage,
 	FormLabel,
 	Input,
 	SimpleGrid,
 	Heading,
+	Spinner,
+	Center,
 } from "@chakra-ui/react";
 import {
 	recursiveAppendFormData,
@@ -20,49 +20,58 @@ import {
 } from "../utils/formUtils";
 import { useAlert } from "../context/AlertContext";
 import useTimeoutManager from "../hooks/useTimeoutManager";
-import { useLastBackup } from "../context/LastBackupContext";
+import { useAjax } from "../context/AjaxContext";
+import { useSettings } from "../context/SettingsContext";
+import { useBackupHistory } from "../context/BackupHistoryContext";
 
-const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
-	const defaultBackupStorageCredentials = {
-		googleDriveApiKey: "",
-		googleDriveClientId: "",
-		googleDriveClientSecret: "",
-		dropboxAccessToken: "",
-		oneDriveClientId: "",
-		oneDriveClientSecret: "",
-		amazonS3AccessKey: "",
-		amazonS3SecretKey: "",
-		amazonS3BucketName: "",
-		amazonS3Region: "",
-		ftpHost: "",
-		ftpUsername: "",
-		ftpPassword: "",
-		ftpPort: "21",
-	};
+const defaultBackupStorageCredentials = {
+	googleDriveApiKey: "",
+	googleDriveClientId: "",
+	googleDriveClientSecret: "",
+	dropboxAccessToken: "",
+	oneDriveClientId: "",
+	oneDriveClientSecret: "",
+	amazonS3AccessKey: "",
+	amazonS3SecretKey: "",
+	amazonS3BucketName: "",
+	amazonS3Region: "",
+	ftpHost: "",
+	ftpUsername: "",
+	ftpPassword: "",
+	ftpPort: "21",
+};
 
-	const [formValues, setFormValues] = useState({
-		backupFrequency: settings.backupFrequency || "daily",
-		backupTime: settings.backupTime || "03:00",
-		backupEmail: settings.backupEmail || "",
-		backupStorageLocation: settings.backupStorageLocation || "",
-		backupStorageCredentials: {
-			...defaultBackupStorageCredentials,
-			...settings.backupStorageCredentials,
-		},
-		backupFiles: settings.backupFiles || true,
-		backupDatabase: settings.backupDatabase || true,
-		backupPlugins: settings.backupPlugins || true,
-		backupThemes: settings.backupThemes || true,
-		backupUploads: settings.backupUploads || true,
-	});
-
+const SettingsForm = () => {
+	const { ajaxUrl, nonce } = useAjax();
+	const { settings, fetchSettings } = useSettings();
+	const [formValues, setFormValues] = useState(null);
 	const [errors, setErrors] = useState({});
 	const { createAlert } = useAlert();
 	const [backupProgress, setBackupProgress] = useState(null);
 	const [savingSettings, setSavingSettings] = useState(false);
 	const [runningBackup, setRunningBackup] = useState(false);
 	const { set: setTimeout } = useTimeoutManager();
-	const { setLastBackupTime } = useLastBackup();
+	const { fetchBackups } = useBackupHistory();
+
+	useEffect(() => {
+		if (settings && Object.keys(settings).length > 0 && !formValues) {
+			setFormValues({
+				backupFrequency: settings.backupFrequency || "daily",
+				backupTime: settings.backupTime || "03:00",
+				backupEmail: settings.backupEmail || "",
+				backupStorageLocation: settings.backupStorageLocation || "",
+				backupStorageCredentials: {
+					...defaultBackupStorageCredentials,
+					...settings.backupStorageCredentials,
+				},
+				backupFiles: settings.backupFiles || true,
+				backupDatabase: settings.backupDatabase || true,
+				backupPlugins: settings.backupPlugins || true,
+				backupThemes: settings.backupThemes || true,
+				backupUploads: settings.backupUploads || true,
+			});
+		}
+	}, [settings]);
 
 	const validateForm = () => {
 		const errors = {};
@@ -176,6 +185,7 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 
 		if (saveResult.success) {
 			createAlert("Settings saved successfully.", "success");
+			fetchSettings(); // Fetch settings to update the context.
 		} else {
 			createAlert(
 				saveResult.message || "An error occurred while saving settings.",
@@ -274,7 +284,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		}
 
 		setBackupProgress(backupProgressResult.progress);
-		setLastBackupTime(backupProgressResult.progress.backupTime);
 		return { success: true };
 	};
 
@@ -317,6 +326,9 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 				"error"
 			);
 		}
+
+		fetchBackups(); // Refresh backup history after backup
+		fetchSettings(); // Fetch settings to update the context.
 
 		setTimeout(() => {
 			setSavingSettings(false);
@@ -490,54 +502,13 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 		}
 	};
 
-	const handleDownloadBackup = async () => {
-		const formData = new FormData();
-		formData.append("action", "simply_backitup_download_zip");
-		formData.append("nonce", nonce);
-
-		try {
-			const response = await fetch(ajaxUrl, {
-				method: "POST",
-				body: formData,
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-			});
-
-			if (!response.ok) {
-				return { success: false, message: "Failed to download backup." };
-			}
-
-			const blob = await response.blob();
-			const url = window.URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = "backup.zip";
-			document.body.appendChild(a);
-			a.click();
-			a.remove();
-			window.URL.revokeObjectURL(url);
-
-			return { success: true };
-		} catch (error) {
-			return {
-				success: false,
-				message: error.message || "An error occurred during backup download.",
-			};
-		}
-	};
-
-	const handleDownloadBackupClick = async (e) => {
-		e.preventDefault();
-
-		const result = await handleDownloadBackup();
-
-		if (result.success) {
-			createAlert("Backup downloaded successfully.", "success");
-		} else {
-			createAlert(result.message, "error");
-		}
-	};
+	if (!formValues) {
+		return (
+			<Center minHeight="100px">
+				<Spinner size="lg" />
+			</Center>
+		);
+	}
 
 	return (
 		<>
@@ -750,30 +721,26 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 					mt={6}
 					style={{ minHeight: "60px" }} // Avoids layout shift.
 				>
-					{!runningBackup && (
+					{!backupProgress && (
 						<div style={{ textAlign: "center" }}>
 							<Button
 								type="button"
 								size="sm"
 								colorScheme="blue"
 								onClick={handleSaveSettings}
-								isDisabled={savingSettings}
+								isLoading={savingSettings}
+								loadingText="Working"
 								m={3}
 							>
-								{savingSettings ? (
-									<>
-										Saving... <span className="spinner is-active"></span>
-									</>
-								) : (
-									"Save Settings"
-								)}
+								Save Settings
 							</Button>
 							<Button
 								type="button"
 								size="sm"
 								colorScheme="teal"
 								onClick={handleSaveAndBackupNow}
-								isDisabled={savingSettings}
+								isLoading={runningBackup || backupProgress}
+								loadingText="Working"
 								m={3}
 							>
 								Save & Backup Now
@@ -786,19 +753,6 @@ const SettingsForm = ({ settings, ajaxUrl, nonce }) => {
 			</form>
 		</>
 	);
-};
-
-SettingsForm.propTypes = {
-	settings: PropTypes.shape({
-		frequency: PropTypes.string,
-		time: PropTypes.string,
-		email: PropTypes.string,
-		backupStorageLocation: PropTypes.string,
-		nonce: PropTypes.string,
-		backupStorageCredentials: PropTypes.object,
-	}).isRequired,
-	ajaxUrl: PropTypes.string.isRequired,
-	nonce: PropTypes.string.isRequired,
 };
 
 export default SettingsForm;

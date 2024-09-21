@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-    HStack,
+	HStack,
 	Grid,
 	GridItem,
 	Box,
@@ -8,9 +8,18 @@ import {
 	Text,
 	Heading,
 	Center,
+	Table,
+	Tr,
+	Th,
+	Td,
+	TableContainer,
+	Thead,
+	Tbody,
+	Spinner,
 } from "@chakra-ui/react";
-import { useLastBackup } from "../context/LastBackupContext";
 import { SettingsForm, DownloadBackup, SVGLogo } from "./allComponents";
+import { useBackupHistory } from "../context/BackupHistoryContext";
+import useTimeoutManager from "../hooks/useTimeoutManager";
 
 const WidgetBox = ({ children, ...props }) => {
 	return (
@@ -28,7 +37,7 @@ const WidgetBox = ({ children, ...props }) => {
 	);
 };
 
-const TopSection = ({ data }) => {
+const TopSection = () => {
 	return (
 		<WidgetBox>
 			<Grid
@@ -50,7 +59,7 @@ const TopSection = ({ data }) => {
 										marginTop: "0px",
 										fontSize: "22px",
 										fontWeight: "bold",
-                                        marginLeft: "10px",
+										marginLeft: "10px",
 									}}
 									color="#082C44"
 								>
@@ -66,9 +75,7 @@ const TopSection = ({ data }) => {
 	);
 };
 
-const BackupSection = ({ data }) => {
-	const { lastBackupTime } = useLastBackup();
-
+const DownloadSNowSection = () => {
 	return (
 		<WidgetBox>
 			<Heading
@@ -82,43 +89,141 @@ const BackupSection = ({ data }) => {
 					fontWeight: "bold",
 				}}
 			>
-				Backup Status
+				Download a Backup
 			</Heading>
-			{lastBackupTime ? (
-				<Text
-					color="gray.600"
-					mb={4}
-					textAlign={"center"}
-				>
-					Last backup: <strong>{lastBackupTime}</strong>
-				</Text>
-			) : (
-				<Text
-					color="gray.600"
-					mb={4}
-					textAlign={"center"}
-				>
-					No backups have been made yet.
-				</Text>
-			)}
-
-			{/* Download Backup Button */}
-			<DownloadBackup
-				ajaxUrl={data?.ajaxurl}
-				nonce={data?.nonce}
-			/>
+			<Text
+				fontSize="sm"
+				color="gray.600"
+				mb={2}
+				textAlign={"center"}
+			>
+				Export a new backup at this moment.
+			</Text>
+			<DownloadBackup />
 		</WidgetBox>
 	);
 };
 
-const SettingsFormSection = ({ data }) => {
+const BackupHistorySection = () => {
+	const { backupHistory, fetchBackups } = useBackupHistory();
+	const [refreshing, setRefreshing] = useState(false);
+	const { set: setTimeout } = useTimeoutManager();
+
+	const refreshBackups = (e) => {
+		e.preventDefault();
+		setRefreshing(true);
+		fetchBackups();
+		setTimeout(() => setRefreshing(false), 2000);
+	};
+
 	return (
 		<WidgetBox>
-			<SettingsForm
-				settings={data?.settings}
-				ajaxUrl={data?.ajaxurl}
-				nonce={data?.nonce}
-			/>
+			<Center>
+				<Heading
+					as="h2"
+					mb={2}
+					mt={0}
+					color="#082C44"
+					textAlign={"center"}
+					style={{
+						fontSize: "22px",
+						fontWeight: "bold",
+					}}
+				>
+					Backup History
+				</Heading>
+				<span>
+					<Button
+						type="button"
+						aria-label="Refresh"
+						size="xs"
+						colorScheme="blue"
+						variant="solid"
+						onClick={refreshBackups}
+						isLoading={refreshing}
+						style={{
+							marginLeft: "10px",
+							width: "25px",
+							height: "25px",
+						}}
+					>
+						<span
+							class="dashicons dashicons-update"
+							aria-hidden="true"
+						></span>
+					</Button>
+				</span>
+			</Center>
+			<Box
+				border="1px solid #E2E8F0"
+				borderRadius="5px"
+				p={0}
+                style={{
+                    overflowX: "hidden",
+                }}
+			>
+				{backupHistory === null && (
+					<Center minHeight="100px">
+						<Spinner size="lg" />
+					</Center>
+				)}
+				{backupHistory &&
+					Array.isArray(backupHistory) &&
+					backupHistory.length > 0 && (
+						<TableContainer
+							style={{
+								overflowY: "scroll",
+								maxHeight: "300px",
+							}}
+						>
+							<Table size="sm">
+								<Thead
+									style={{
+										position: "sticky",
+										top: "0",
+										backgroundColor: "#fff",
+										boxShadow: "0 2px 2px -1px rgba(0, 0, 0, 0.1)",
+										border: "none",
+									}}
+								>
+									<Tr>
+										<Th>Date</Th>
+										<Th>Message</Th>
+									</Tr>
+								</Thead>
+								<Tbody>
+									{backupHistory.map((backup) => (
+										<Tr key={backup.date}>
+											<Td>
+												<span style={{ fontSize: "12px" }}>{backup.date}</span>
+											</Td>
+											<Td>
+												<span style={{ fontSize: "12px" }}>
+													{backup.message}
+												</span>
+											</Td>
+										</Tr>
+									))}
+								</Tbody>
+							</Table>
+						</TableContainer>
+					)}
+				{backupHistory &&
+					Array.isArray(backupHistory) &&
+					backupHistory.length === 0 && (
+						<Text textAlign="center">
+							No backups found. Make a backup to see history.
+						</Text>
+					)}
+			</Box>
+		</WidgetBox>
+	);
+};
+
+const SettingsFormSection = () => {
+	return (
+		<WidgetBox>
+			<SettingsForm />
 		</WidgetBox>
 	);
 };
@@ -170,20 +275,21 @@ const UpgradeToPremiumSection = () => {
 	);
 };
 
-const Dashboard = ({ data }) => {
+const Dashboard = () => {
 	return (
 		<>
-			<TopSection data={data} />
+			<TopSection />
 			{/* Grid with columns that stack on smaller screens */}
 			<Grid
 				templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
 				gap={0}
 			>
 				<GridItem>
-					<BackupSection data={data} />
+					<DownloadSNowSection />
+					<BackupHistorySection />
 				</GridItem>
 				<GridItem>
-					<SettingsFormSection data={data} />
+					<SettingsFormSection />
 				</GridItem>
 				<GridItem>
 					<UpgradeToPremiumSection />

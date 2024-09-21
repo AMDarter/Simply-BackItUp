@@ -11,10 +11,7 @@ class Scanner
      * List of dangerous file extensions for UNIX-based systems (Linux, macOS) and Windows.
      * @var array
      */
-    public static $dangerousExtensions = [
-        'exe', 'com', 'bat', 'cmd', 'sh', 'bash', 'bin', 'msi', 'vbs', 'ps1', 'jar', 
-        'wsf', 'hta', 'scr', 'pif', 'gadget', 'inf', 'reg', 'msp', 'scf', 'lnk'
-    ];
+    public static $dangerousExtensions = ['exe', 'com', 'bat', 'cmd', 'sh', 'bash', 'bin', 'msi', 'vbs', 'ps1', 'jar', 'wsf', 'hta', 'scr', 'pif', 'gadget', 'inf', 'reg', 'msp', 'scf', 'lnk'];
 
     /**
      * Scan a directory for files.
@@ -99,4 +96,77 @@ class Scanner
         return $flaggedFiles;
     }
 
+    /**
+     * Fetches checksums from the WordPress API for the current WordPress version and locale.
+     * Caches the result in WordPress object cache to avoid multiple requests.
+     *
+     * @return array|null Associative array of known checksums or null if the API request fails.
+     */
+    public static function getChecksumsFromApi(): ?array
+    {
+        $version = get_bloginfo('version');
+        $locale = get_locale();
+        
+        $cacheKey = "wp_checksums_{$version}_{$locale}";
+
+        $cachedChecksums = wp_cache_get($cacheKey);
+        if ($cachedChecksums !== false) {
+            return $cachedChecksums;
+        }
+
+        $url = "https://api.wordpress.org/core/checksums/1.0/?version={$version}&locale={$locale}";
+        $response = wp_remote_get($url);
+
+        if (is_wp_error($response)) {
+            return null;
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        $checksums = $data['checksums'] ?? null;
+
+        if ($checksums) {
+            wp_cache_set(
+                $cacheKey, 
+                $checksums, '', 
+                2 * MONTH_IN_SECONDS // Use Memcache or Redis to cache this for 60 days.
+            );
+        }
+
+        return $checksums;
+    }
+
+    /**
+     * Verify file integrity by comparing file hashes with known good MD5 hashes (from the WordPress API).
+     *
+     * @param string $path Path to the directory to scan.
+     * @param array $knownChecksums Associative array of known MD5 checksums ['file path' => 'expected md5 hash'].
+     * @return array List of files with mismatched checksums.
+     */
+    public static function verifyChecksums(array $knownChecksums): array
+    {
+        $mismatchedFiles = [];
+        $path = ABSPATH;
+
+        foreach (self::scanFiles($path) as $file) {
+            $relativeFilePath = str_replace($path, '', $file);
+
+            if (isset($knownChecksums[$relativeFilePath])) {
+                $currentHash = md5_file($file);
+
+                $expectedHash = $knownChecksums[$relativeFilePath];
+
+                if ($currentHash !== $expectedHash) {
+                    $mismatchedFiles[] = [
+                        'file' => $relativeFilePath,
+                        'expected' => $expectedHash,
+                        'found' => $currentHash,
+                    ];
+                }
+            }
+        }
+
+        return $mismatchedFiles;
+    }
 }

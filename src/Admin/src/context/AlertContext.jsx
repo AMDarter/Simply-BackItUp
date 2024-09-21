@@ -1,6 +1,5 @@
-import React, { createContext, useContext, useState } from "react";
-import { Box } from "@chakra-ui/react";
-import useScrollY from "../hooks/useScrollY";
+import React, { createContext, useContext, useState, useMemo } from "react";
+import { Center } from "@chakra-ui/react";
 import useTimeoutManager from "../hooks/useTimeoutManager";
 
 const AlertContext = createContext();
@@ -9,7 +8,6 @@ export const useAlert = () => useContext(AlertContext);
 
 export const AlertProvider = ({ children }) => {
 	const [alert, setAlert] = useState(null);
-	const scrollY = useScrollY();
 	const { set: setTimeout, clear: clearTimeout } = useTimeoutManager();
 
 	const createAlert = (message, type = "success") => {
@@ -23,41 +21,53 @@ export const AlertProvider = ({ children }) => {
 	};
 
 	const AlertComponent = () => {
+		const borderColor = () => {
+			if (alert.type === "success") {
+				return "#38A169";
+			} else if (alert.type === "error") {
+				return "#E53E3E";
+			}
+			return "#CBD5E0";
+		};
+
+        const simplyBackitupRootWidth = document.getElementById("simply-backitup-root").offsetWidth;
+
 		return (
-			<Box
+			<div
 				style={{
-					position: "absolute",
-					top: `${scrollY}px`,
-					left: "0",
-					right: "0",
+					position: "fixed",
+					top: "50px",
 					zIndex: "100",
-					margin: "0 auto",
-					maxWidth: "600px",
-					padding: "15px",
-					boxShadow: "0 0 10px rgba(0,0,0,0.1)",
-					backgroundColor: "#fff",
-					borderRadius: "5px",
+					backgroundColor: "transparent",
 				}}
 			>
-				<div
-					className={`notice notice-${alert.type}`}
+				<Center
 					style={{
-						margin: "0",
+                        width: (simplyBackitupRootWidth - 40) + "px",
+						minWidth: "50%",
+                        maxWidth: "100%",
+						zIndex: "100",
+						padding: "8px",
+                        marginLeft: "20px",
+						boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+						borderRadius: "5px",
+						backgroundColor: "#FFF",
+						borderColor: borderColor(),
+						borderWidth: "1px",
+                        fontSize: "16px",
+                        color: "#2D3748",
+                        fontWeight: "500",
 					}}
 				>
-					<p>{alert.message}</p>
-				</div>
-			</Box>
+					{alert.message}
+				</Center>
+			</div>
 		);
 	};
 
 	return (
 		<AlertContext.Provider value={{ createAlert }}>
-			{alert && (
-				<div style={{ position: "relative" }}>
-					<AlertComponent />
-				</div>
-			)}
+			{alert && <AlertComponent />}
 			{children}
 		</AlertContext.Provider>
 	);
