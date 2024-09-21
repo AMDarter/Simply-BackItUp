@@ -6,7 +6,10 @@ use AMDarter\SimplyBackItUp\Service\TempZip;
 use AMDarter\SimplyBackItUp\Exceptions\InvalidBackupFileException;
 use AMDarter\SimplyBackItUp\Validators\BackupValidator;
 use AMDarter\SimplyBackItUp\Controllers\Settings;
-use AMDarter\SimplyBackItUp\Utils\Scanner;
+use AMDarter\SimplyBackItUp\Utils\{
+    Scanner,
+    Memory
+};
 
 class Backup
 {
@@ -36,6 +39,9 @@ class Backup
 
     public static function step1(): void
     {
+        if (!Memory::isEnoughMemory(50)) {
+            wp_send_json_error(['message' => 'Not enough memory to safely create the backup. Ensure you have enough memory and try again.']);
+        }
 
         try {
             $tempStoreFile = self::zipFiles();
@@ -55,6 +61,9 @@ class Backup
 
     public static function step2(): void
     {
+        if (!Memory::isEnoughMemory(50)) {
+            wp_send_json_error(['message' => 'Not enough memory to safely create the backup. Ensure you have enough memory and try again.']);
+        }
 
         try {
             $databaseExported = self::exportDatabase();
@@ -71,6 +80,10 @@ class Backup
 
     public static function step3(): void
     {
+        if (!Memory::isEnoughMemory(50)) {
+            wp_send_json_error(['message' => 'Not enough memory to safely create the backup. Ensure you have enough memory and try again.']);
+        }
+
         try {
             $tempBackupZipFile = self::getTransientBackupFile();
             self::uploadToCloud($tempBackupZipFile, Settings::all());
@@ -101,6 +114,10 @@ class Backup
 
     public static function downloadBackupZip(): void
     {
+        if (!Memory::isEnoughMemory(50)) {
+            wp_send_json_error(['message' => 'Not enough memory to safely create the backup. Ensure you have enough memory and try again.']);
+        }
+
         $tempBackupZipFile = "";
         // Check if the zip file is already created in the temp directory.
         try {
@@ -135,7 +152,20 @@ class Backup
             $currentUser = wp_get_current_user();
             self::logToHistory('Backup downloaded by user: ' . sanitize_user($currentUser->user_login));
 
-            readfile($tempBackupZipFile);
+            // Read in chunks
+            $handle = fopen($tempBackupZipFile, 'rb');
+            if ($handle === false) {
+                throw new \Exception('Unable to open file.');
+            }
+
+            // Output file in chunks to prevent memory exhaustion
+            while (!feof($handle)) {
+                echo fread($handle, 8192); // 8KB chunks
+                flush(); // Ensure output is sent to the client immediately
+            }
+
+            fclose($handle);
+
             $tempZipService = new TempZip();
             $tempZipService->cleanup();
             exit;

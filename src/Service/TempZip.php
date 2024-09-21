@@ -9,39 +9,26 @@ use AMDarter\SimplyBackItUp\Utils\{
 
 class TempZip
 {
-    /**
-     * @var array Configuration settings for the backup process.
-     * - 'excludeDangerousExtensions' => (bool) Whether to exclude files with dangerous extensions.
-     * - 'customExclusions' => (array) Custom files and directories to exclude from the ZIP.
-     */
-    private $settings = [
-        'excludeDangerousExtensions' => true,
-        'customExclusions' => [],
-    ];
+
+    private bool $excludeDangerousExtensions = true;
+
+    private array $customExclusions = ['.', '..'];
 
     /**
      * @var string Prefix used for backup ZIP filenames.
      */
     private string $prefix = 'simply-backitup-wp-site-backup-';
 
-    public function __construct()
+    public function __construct() {}
+
+    public function setExcludeDangerousExtensions(bool $excludeDangerousExtensions): void
     {
-        gc_collect_cycles();
-        error_log('TempZip Construct Memory: ' . json_encode($this->memory()));
+        $this->excludeDangerousExtensions = $excludeDangerousExtensions;
     }
 
-    public function __destruct()
+    public function setCustomExclusions(array $customExclusions): void
     {
-        gc_collect_cycles();
-        error_log('TempZip Destruct Memory: ' . json_encode($this->memory()));
-    }
-
-    public function memory(): array
-    {
-        return [
-            'memory_limit' => ini_get('memory_limit'),
-            'memory_get_usage' => memory_get_usage(),
-        ];
+        $this->customExclusions = $customExclusions;
     }
 
     /**
@@ -65,8 +52,7 @@ class TempZip
         $backupFiles = $this->list();
         foreach ($backupFiles as $backupFile) {
             if (strpos($backupFile, $this->prefix) !== false) {
-                $fileTime = filemtime($backupFile);
-                $age = time() - $fileTime;
+                $age = time() - filemtime($backupFile);
                 if ($age > $maxAge) {
                     unlink($backupFile);
                 }
@@ -130,13 +116,12 @@ class TempZip
      * Check if the directory is larger than the specified size limit.
      *
      * @param string $directory The path of the directory to check.
-     * @param int $sizeLimitGB The size limit in GB.
+     * @param int $sizeLimitBytes The size limit in bytes.
      * @throws \Exception If the directory exceeds the size limit.
      * @return bool true if too large, false if not.
      */
-    public function reachedSizeLimit(string $directory, int $sizeLimitGB): bool
+    public function excedesSizeLimit(string $directory, int $sizeLimitBytes): bool
     {
-        $sizeLimitBytes = $sizeLimitGB * 1024 * 1024 * 1024; // Convert GB to bytes
         $directorySize = $this->getDirSize($directory, $sizeLimitBytes);
 
         if ($directorySize > $sizeLimitBytes) {
@@ -144,6 +129,18 @@ class TempZip
         }
 
         return false;
+    }
+
+    /**
+     * Checks if the directory has enough storage space to create a ZIP archive.
+     * @param string $directory
+     * @param int $requiredSpace
+     * @return bool
+     */
+    protected static function hasEnoughStorage(string $directory, int $requiredSpace): bool
+    {
+        $availableSpace = disk_free_space($directory); // Gets available space in bytes
+        return $availableSpace >= $requiredSpace; // Compare available space with required space
     }
 
     /**
@@ -156,28 +153,16 @@ class TempZip
      */
     public function zipDir(string $sourcePath, string $outZipPath): void
     {
-        $defaultSizeLimitGB = 5;
-        $memoryUsage = memory_get_usage();
-        $memoryLimit = ini_get('memory_limit');
-        $memoryLimitBytes = Memory::convertToBytes($memoryLimit);
-
-        // Calculate available memory and define a 20% safe buffer for the system
-        $availableMemory = $memoryLimitBytes - $memoryUsage;
-        $safeBuffer = $memoryLimitBytes * 0.2;
-
-        if ($availableMemory < $safeBuffer) {
-            throw new \Exception("Not enough memory to safely create the ZIP archive.");
+        $sizeLimitBytes = disk_free_space($sourcePath);
+        if ($sizeLimitBytes === false) {
+            throw new \Exception("Failed to determine free space on disk.");
         }
+        error_log('Free space: ' . $sizeLimitBytes);
+        $excedesSizeLimit = $this->excedesSizeLimit($sourcePath, $sizeLimitBytes);
+        $sizeLimitMb = $sizeLimitBytes / 1024 / 1024;
 
-        $sizeLimitGB = $defaultSizeLimitGB;
-        if ($availableMemory < ($memoryLimitBytes * 0.5)) {
-            // Reduce the size limit based on memory usage, but no lower than 0.5 GB
-            $sizeLimitGB = ($availableMemory / 1024 / 1024 / 1024) * 0.5;
-            $sizeLimitGB = max($sizeLimitGB, 0.5); // 0.5 GB is a practical minimum
-        }
-
-        if ($this->reachedSizeLimit($sourcePath, $sizeLimitGB)) {
-            throw new \Exception("The directory size exceeds the limit of {$sizeLimitGB}GB based on available memory.");
+        if ($excedesSizeLimit) {
+            throw new \Exception("The directory size exceeds the limit of $sizeLimitMb MB.");
         }
 
         $zipArchive = new \ZipArchive();
@@ -189,8 +174,25 @@ class TempZip
         $zipArchive->close();
     }
 
+    private function shouldExcludeFromZip(string $file): bool
+    {
+        if (in_array($file, $this->customExclusions)) {
+            return true;
+        }
+
+        if ($this->excludeDangerousExtensions && Scanner::isDangerousExt($file)) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * Recursively adds files and directories from a source folder to a ZIP archive.
+     * 
+     * This method processes each directory and file individually, maintaining stable memory usage. 
+     * PHP effectively releases memory between recursive calls, preventing spikes. 
+     * The memory footprint remains low since no large data structures are retained across iterations.
      *
      * @param string $folder The directory to add to the ZIP archive.
      * @param \ZipArchive $zipArchive The active ZIP archive object.
@@ -202,30 +204,14 @@ class TempZip
     {
         $handle = opendir($folder);
         if ($handle === false) {
+            $zipArchive->close();
             throw new \Exception("Unable to open directory $folder for zipping.");
-        }
-
-        // Combine user-provided exclusions with default ones.
-        $exclusions = $this->settings['customExclusions'] ?? [];
-        if (!is_array($exclusions)) {
-            $exclusions = [];
-        }
-        $exclusions = array_merge($exclusions, ['.', '..']);
-
-        // Determine whether to exclude dangerous extensions.
-        $excludeDangerousExtensions = $this->settings['excludeDangerousExtensions'] ?? true;
-        if (!is_bool($excludeDangerousExtensions)) {
-            $excludeDangerousExtensions = true;
         }
 
         // Iterate through directory contents and add them to the ZIP.
         while (false !== ($f = readdir($handle))) {
-            if (in_array($f, $exclusions)) {
-                continue; // Skip excluded files or directories
-            }
-
-            if ($excludeDangerousExtensions && Scanner::isDangerousExt($f)) {
-                continue; // Skip files with dangerous extensions
+            if ($this->shouldExcludeFromZip($f)) {
+                continue; // Skip
             }
 
             $filePath = $folder . '/' . $f;

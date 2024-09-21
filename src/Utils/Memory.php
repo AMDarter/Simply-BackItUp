@@ -35,10 +35,17 @@ class Memory
         return $memoryLimitBytes - $memoryUsage;
     }
 
-    public static function safeBuffer(): int
+    /**
+     * Check if available memory is greater than a specified buffer.
+     *
+     * @param int $safeBufferMB The safe buffer size in megabytes.
+     * @return bool True if enough memory is available, false if not.
+     */
+    public static function isEnoughMemory(int $safeBufferMB): bool
     {
-        $memoryLimit = ini_get('memory_limit');
-        $memoryLimitBytes = Memory::convertToBytes($memoryLimit);
-        return $memoryLimitBytes * 0.2; // Use only 20% of memory as a safe buffer
+        $safeBufferBytes = $safeBufferMB * 1024 * 1024; // Convert MB to bytes
+        $availableMemory = self::availableMemory();
+
+        return $availableMemory >= $safeBufferBytes;
     }
 }
