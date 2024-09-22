@@ -4,14 +4,13 @@ namespace AMDarter\SimplyBackItUp\Validators;
 
 use Respect\Validation\Validator as v;
 use AMDarter\SimplyBackItUp\Exceptions\InvalidBackupFileException;
-use AMDarter\SimplyBackItUp\Utils\{
-    Scanner,
-    Memory
-};
+use AMDarter\SimplyBackItUp\Utils\Scanner;
 
 class BackupValidator
 {
     public $filename;
+
+    public $missingCheckSumFiles;
 
     public function __construct($filename)
     {
@@ -21,26 +20,21 @@ class BackupValidator
     /**
      * Validates the backup zip file.
      *
+     * @param array $knownChecksums An array of known checksums for essential WordPress files (the array keys represent the file paths).
      * @throws \AMDarter\SimplyBackItUp\Exceptions\InvalidBackupFileException
      * @return self
      */
-    public function validateAll(): self
+    public function validateAll(array $knownChecksums): self
     {
-        $validate = $this->validateFileName()
+        return $this->validateFileName()
             ->validateFileExists()
             ->validateFileIsReadable()
             ->isDangerousFile()
             ->validateFileIsZip()
             ->validateFileSize()
             ->validateFileIsUnzippable()
-            ->validateDangerousFiles();
-
-        $knownChecksums = Scanner::getChecksumsFromApi();
-
-        if (empty($knownChecksums)) {
-            return $validate; // Skip checksum validation if we can't get the checksums
-        }
-        return $validate->validateZipContainsEssentialFiles($knownChecksums);
+            ->validateDangerousFiles()
+            ->validateZipContainsEssentialFiles($knownChecksums);
     }
 
     /**
@@ -149,25 +143,17 @@ class BackupValidator
         return $this;
     }
 
-    private function hashZipFileContent($fileContent)
-    {
-        if ($fileContent === false) {
-            return null;
-        }
-        return md5($fileContent);
-    }
-
     /**
-     * Validates that the ZIP file contains essential WordPress files and that they match the checksums from the WordPress API.
+     * Validates that the ZIP file contains essential WordPress files and that they exist in the WordPress known Checksums API.
      *
-     * @param array $knownChecksums An array of known checksums for essential WordPress files.
+     * @param array $knownChecksums An array of known checksums for essential WordPress files (the array keys represent the file paths).
      * @throws \AMDarter\SimplyBackItUp\Exceptions\InvalidBackupFileException
      * @return self
      */
     public function validateZipContainsEssentialFiles(array $knownChecksums): self
     {
-        if (!Memory::isEnoughMemory(50)) {
-            return $this; // Not enough memory, skip this step
+        if (empty($knownChecksums)) {
+            return $this;
         }
 
         $replaceMultipleSlashes = function ($file) {
@@ -196,57 +182,25 @@ class BackupValidator
 
         // Check if all essential files are present in found files
         $missingFiles = [];
-        for ($i = 0, $essentialFilesCount; $i < $essentialFilesCount; $i++) {
-            if (!in_array($essentialFiles[$i], $foundFiles, true)) {
-                $missingFiles[] = $essentialFiles[$i];
+        for ($i = 0; $i < $essentialFilesCount; $i++) {
+            $file = $essentialFiles[$i];
+            // Does it actually exist? Some admins may have custom paths or removed core WP files intentionally.
+            if (!file_exists(ABSPATH . $file)) {
+                continue;
+            }
+            // Check if the file is missing from the ZIP
+            if (!in_array($file, $foundFiles, true)) {
+                $missingFiles[] = $file;
             }
         }
+
+        $essentialFiles = null; // Free up memory
 
         if (!empty($missingFiles)) {
             $zip->close();
-            throw new InvalidBackupFileException(
-                substr('The backup ZIP file is missing the following essential WordPress files: ' . implode(', ', $missingFiles), 0, 1000) . '...'
-            );
-        }
-
-        $missingFiles = null; // Release memory
-
-        $incorrectMatches = [];
-
-        for ($i = 0, $essentialFilesCount; $i < $essentialFilesCount; $i++) {
-            $file = $essentialFiles[$i];
-            if (in_array($file, $foundFiles)) {
-                // Skip theme and plugin files
-                if (strpos($file, 'wp-content/themes/') === 0 || strpos($file, 'wp-content/plugins/') === 0) {
-                    continue;
-                }
-
-                $fileHash = $this->hashZipFileContent($zip->getFromName($file));
-                if ($fileHash !== $knownChecksums[$file]) {
-                    $incorrectMatches[$file] = [
-                        'expected' => $knownChecksums[$file],
-                        'actual' => $fileHash,
-                    ];
-                }
-            }
-        }
-
-        $essentialFiles = null; // Release memory
-
-        $logIncorrectMatches = function ($incorrectMatches) {
-            $message = 'Simply BackItUp: The following essential WordPress files in the backup ZIP do not match the official checksums: ';
-            foreach ($incorrectMatches as $file => $hashes) {
-                $message .= "{$file} (expected: {$hashes['expected']}, actual: {$hashes['actual']}), ";
-            }
-            error_log(substr($message, 0, -2));
-        };
-
-        if (!empty($incorrectMatches)) {
-            $zip->close();
-            $logIncorrectMatches($incorrectMatches);
-            throw new InvalidBackupFileException(
-                'WARNING: Some WordPress files do not match the official release or have been tampered with.'
-            );
+            $this->missingCheckSumFiles = $missingFiles;
+            $count = count($missingFiles);
+            throw new InvalidBackupFileException("The backup ZIP file is missing $count essential WordPress files.");
         }
 
         $zip->close();

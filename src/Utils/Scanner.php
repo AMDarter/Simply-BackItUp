@@ -106,7 +106,7 @@ class Scanner
     {
         $version = get_bloginfo('version');
         $locale = get_locale();
-        
+
         $cacheKey = "wp_checksums_{$version}_{$locale}";
 
         $cachedChecksums = wp_cache_get($cacheKey);
@@ -126,13 +126,16 @@ class Scanner
 
         $checksums = $data['checksums'] ?? null;
 
-        if ($checksums) {
-            wp_cache_set(
-                $cacheKey, 
-                $checksums, '', 
-                2 * MONTH_IN_SECONDS // Use Memcache or Redis to cache this for 60 days.
-            );
+        if (!is_array($checksums) || empty($checksums)) {
+            return null;
         }
+
+        wp_cache_set(
+            $cacheKey,
+            $checksums,
+            '',
+            2 * MONTH_IN_SECONDS // Use Memcache or Redis to cache this for 60 days.
+        );
 
         return $checksums;
     }

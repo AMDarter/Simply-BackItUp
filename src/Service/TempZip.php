@@ -162,6 +162,7 @@ class TempZip
         $sizeLimitMb = $sizeLimitBytes / 1024 / 1024;
 
         if ($excedesSizeLimit) {
+            // @todo: If there isn't enough space, maybe we have enough memory to chunk?
             throw new \Exception("The directory size exceeds the limit of $sizeLimitMb MB.");
         }
 

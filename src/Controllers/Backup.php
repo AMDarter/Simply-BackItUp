@@ -188,7 +188,11 @@ class Backup
             $tempBackupZipFile = $tempZipService->tempDir() . DIRECTORY_SEPARATOR . $tempZipService->generateFilename();
             $tempZipService->zipDir(ABSPATH, $tempBackupZipFile);
             $validator = new BackupValidator($tempBackupZipFile);
-            $validator->validateAll();
+            $knownChecksums = apply_filters(
+                'simplybackitup_filter_checksums',
+                Scanner::getChecksumsFromApi() ?? []
+            );
+            $validator->validateAll($knownChecksums);
         } catch (\Exception $e) {
             error_log(
                 'Simply BackItUp: Failed to zip files. ' . $e->getMessage()
@@ -215,7 +219,11 @@ class Backup
             $tempBackupZipFile = wp_normalize_path($tempBackupZipFile);
         }
         $validator = new BackupValidator($tempBackupZipFile);
-        $validator->validateAll();
+        $knownChecksums = apply_filters(
+            'simplybackitup_filter_checksums',
+            Scanner::getChecksumsFromApi() ?? []
+        );
+        $validator->validateAll($knownChecksums);
         $time = time() - filemtime($tempBackupZipFile);
         if ($time < 30) {
             return $tempBackupZipFile;
