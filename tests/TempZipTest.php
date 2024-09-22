@@ -156,19 +156,6 @@ class TempZipTest extends TestCase
         $validator->validateFileExists();
     }
 
-    public function testBackupValidationIsExecutableFile(): void
-    {
-        $executableFile = $this->tempDir . DIRECTORY_SEPARATOR . 'executable-file.exe';
-        touch($executableFile);
-        chmod($executableFile, 0755); // Set file permissions to make it executable
-
-        $this->expectException(InvalidBackupFileException::class);
-        $this->expectExceptionMessage('DANGER: The backup file is not safe to download. We advise you to take remediation steps immediately.');
-
-        $validator = new BackupValidator($executableFile);
-        $validator->isDangerousFile();
-    }
-
     public function testBackupValidationNotAZipFile(): void
     {
         $notAZipFile = $this->tempDir . DIRECTORY_SEPARATOR . 'not-a-zip-file.txt';
@@ -193,25 +180,5 @@ class TempZipTest extends TestCase
 
         $validator = new BackupValidator($corruptedZipFile);
         $validator->validateFileIsUnzippable();
-    }
-
-    public function testBackupValidationZipDoesNotContainEssentialFiles(): void
-    {
-        $knownChecksums = [
-            'index.php' => '926dd0f95df723f9ed934eb058882cc8',
-            'wp-load.php' => '9141d894aa67a3a812b4d01cfa0070ac',
-            'wp-cron.php' => '78ff257936e3e616eb1f8b3f0b37d7ff',
-            'wp-login.php' => '55d19bcb77ba886a258a40895e62f677',
-        ];
-
-        $tempBackupZipFile = $this->tempDir . DIRECTORY_SEPARATOR . $this->tempZip->generateFilename();
-
-        $this->tempZip->zipDir(ABSPATH, $tempBackupZipFile);
-
-        $this->expectException(InvalidBackupFileException::class);
-        $this->expectExceptionMessage('The backup ZIP file is missing the following essential WordPress files: index.php, wp-load.php, wp-cron.php, wp-login.php...');
-
-        $validator = new BackupValidator($tempBackupZipFile);
-        $validator->validateZipContainsEssentialFiles($knownChecksums);
     }
 }

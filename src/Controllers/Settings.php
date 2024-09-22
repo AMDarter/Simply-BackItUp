@@ -38,7 +38,7 @@ class Settings
                 'validator' => v::arrayType(),
                 'sanitizer' => [self::class, 'recursiveSanitizeText'],
                 'option_name' => 'simply_backitup_backup_storage_credentials',
-                'error_message' => 'Invalid backup storage credentials. Must be an array.' . gettype($postArray['backupStorageCredentials'] ?? '') . ' given.',
+                'error_message' => 'Invalid backup storage credentials. Must be an array.',
                 'items' => [
                     'googleDriveApiKey' => [
                         'validator' => v::optional(v::stringType()),
@@ -280,3 +280,4 @@ class Settings
         return sanitize_text_field($data);
     }
 }
+

@@ -32,6 +32,27 @@ export const BackupHistoryProvider = ({ children }) => {
 		}
 	};
 
+    const clearBackups = async () => {
+        const formData = new FormData();
+        formData.append("action", "simply_backitup_clear_history");
+        formData.append("nonce", nonce);
+
+        try {
+            const response = await fetch(ajaxUrl, {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to clear backup history");
+            }
+
+            fetchBackups();
+        } catch (error) {
+            console.error("Error clearing backup history", error);
+        }
+    };
+
 	useEffect(() => {
 		fetchBackups();
 
@@ -42,7 +63,7 @@ export const BackupHistoryProvider = ({ children }) => {
 	}, [ajaxUrl, nonce]);
 
 	return (
-		<BackupHistoryContext.Provider value={{ backupHistory, fetchBackups }}>
+		<BackupHistoryContext.Provider value={{ backupHistory, fetchBackups, clearBackups }}>
 			{children}
 		</BackupHistoryContext.Provider>
 	);

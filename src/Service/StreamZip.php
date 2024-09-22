@@ -1,15 +1,12 @@
-<?php
+<?php 
 
 namespace AMDarter\SimplyBackItUp\Service;
 
-use AMDarter\SimplyBackItUp\Utils\{
-    Memory,
-    Scanner
-};
+use AMDarter\SimplyBackItUp\Utils\Scanner;
 
-class TempZip
+
+class StreamZip
 {
-
     private bool $excludeDangerousExtensions = true;
 
     private array $customExclusions = ['.', '..'];
@@ -39,45 +36,6 @@ class TempZip
     public function generateFilename(): string
     {
         return $this->prefix . date('Y-m-d-H-i-s') . '.zip';
-    }
-
-    /**
-     * Cleans up old backup files by removing those that exceed the specified age.
-     *
-     * @param int $maxAge Maximum age of files (in seconds) before they are deleted. Default is 30 seconds.
-     * @return void
-     */
-    public function cleanup($maxAge = 30): void
-    {
-        $backupFiles = $this->list();
-        foreach ($backupFiles as $backupFile) {
-            if (strpos($backupFile, $this->prefix) !== false) {
-                $age = time() - filemtime($backupFile);
-                if ($age > $maxAge) {
-                    unlink($backupFile);
-                }
-            }
-        }
-    }
-
-    /**
-     * Retrieves a list of all backup files in the temporary backup directory.
-     *
-     * @return array An array of filenames that match the backup ZIP pattern.
-     */
-    public function list(): array
-    {
-        $tempDir = $this->tempDir();
-        $backupFiles = glob((string) $tempDir . DIRECTORY_SEPARATOR . '*.zip');
-        if (!is_array($backupFiles)) {
-            return [];
-        }
-        return $backupFiles;
-    }
-
-    public function sanitizeFileName(string $filename): string
-    {
-        return sanitize_file_name($filename);
     }
 
     /**

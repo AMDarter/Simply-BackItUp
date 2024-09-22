@@ -53,6 +53,14 @@ const SettingsForm = () => {
 	const { set: setTimeout } = useTimeoutManager();
 	const { fetchBackups } = useBackupHistory();
 
+	const storageLocations = [
+		{ value: "FTP", label: "FTP", enabled: true },
+		{ value: "Amazon S3", label: "Amazon S3", enabled: true },
+		{ value: "Google Drive", label: "Google Drive", enabled: false },
+		{ value: "Dropbox", label: "Dropbox", enabled: false },
+		{ value: "OneDrive", label: "OneDrive", enabled: false },
+	];
+
 	useEffect(() => {
 		if (settings && Object.keys(settings).length > 0 && !formValues) {
 			setFormValues({
@@ -238,52 +246,102 @@ const SettingsForm = () => {
 		}
 	};
 
+	const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 	const handleBackupNow = async () => {
 		let backupProgressResult;
 
 		setBackupProgress({ value: 0, message: "Starting backup..." });
 
-		backupProgressResult = await performBackupStep({
-			ajaxUrl,
-			action: "simply_backitup_step1",
-			nonce: nonce,
-			progressValue: 33,
-			message: "Creating backup file...",
+		// Step 0
+		await Promise.all([
+			wait(1500).then(() =>
+				setBackupProgress({ value: 5, message: "Zipping files..." })
+			),
+			performBackupStep({
+				ajaxUrl,
+				action: "simply_backitup_step0",
+				nonce: nonce,
+			}),
+		]).then(([_, result]) => {
+			backupProgressResult = result;
 		});
 
+        console.log(backupProgressResult);
 		if (!backupProgressResult.success) {
 			return { success: false, message: backupProgressResult.message };
 		}
 
-		setBackupProgress(backupProgressResult.progress);
+		setBackupProgress({ value: 10, message: backupProgressResult.progress.message });
+		backupProgressResult = null;
 
-		backupProgressResult = await performBackupStep({
-			ajaxUrl,
-			action: "simply_backitup_step2",
-			nonce: nonce,
-			progressValue: 66,
-			message: "Uploading backup file...",
+		// Step 1
+		await Promise.all([
+			wait(1500).then(() =>
+				setBackupProgress({ value: 30, message: "Zipping files..." })
+			),
+			performBackupStep({
+				ajaxUrl,
+				action: "simply_backitup_step1",
+				nonce: nonce,
+			}),
+		]).then(([_, result]) => {
+			backupProgressResult = result;
 		});
 
+        console.log(backupProgressResult);
 		if (!backupProgressResult.success) {
 			return { success: false, message: backupProgressResult.message };
 		}
 
-		setBackupProgress(backupProgressResult.progress);
+		setBackupProgress({ value: 50, message: backupProgressResult.progress.message });
+		backupProgressResult = null;
 
-		backupProgressResult = await performBackupStep({
-			ajaxUrl,
-			action: "simply_backitup_step3",
-			nonce: nonce,
-			progressValue: 100,
-			message: "Backup completed.",
+		// Step 2
+		await Promise.all([
+			wait(1500).then(() =>
+				setBackupProgress({ value: 55, message: "Exporting database..." })
+			),
+			performBackupStep({
+				ajaxUrl,
+				action: "simply_backitup_step2",
+				nonce: nonce,
+			}),
+		]).then(([_, result]) => {
+			backupProgressResult = result;
 		});
 
+        console.log(backupProgressResult);
 		if (!backupProgressResult.success) {
 			return { success: false, message: backupProgressResult.message };
 		}
 
-		setBackupProgress(backupProgressResult.progress);
+		setBackupProgress({ value: 75, message: backupProgressResult.progress.message });
+		backupProgressResult = null;
+
+		// Step 3
+		await Promise.all([
+			wait(1500).then(() =>
+				setBackupProgress({
+					value: 80,
+					message: "Uploading backup to cloud server...",
+				})
+			),
+			performBackupStep({
+				ajaxUrl,
+				action: "simply_backitup_step3",
+				nonce: nonce,
+			}),
+		]).then(([_, result]) => {
+			backupProgressResult = result;
+		});
+
+        console.log(backupProgressResult);
+		if (!backupProgressResult.success) {
+			return { success: false, message: backupProgressResult.message };
+		}
+
+		setBackupProgress({ value: 100, message: backupProgressResult.progress.message }); // 100% progress
 		return { success: true };
 	};
 
@@ -475,7 +533,8 @@ const SettingsForm = () => {
 				style={{
 					width: "100%",
 					maxWidth: "26rem",
-					padding: "8px",
+					padding: "0 8px",
+					height: "2rem",
 					borderRadius: "4px",
 					border: "1px solid #CBD5E0",
 				}}
@@ -489,6 +548,7 @@ const SettingsForm = () => {
 			...formValues,
 			backupStorageCredentials: {
 				...defaultBackupStorageCredentials,
+				...settings.backupStorageCredentials,
 			},
 		});
 	};
@@ -531,120 +591,145 @@ const SettingsForm = () => {
 			</Box>
 
 			<form>
-				{/* Frequency Setting */}
-				<FormControl
-					as="fieldset"
-					mt={4}
-					isInvalid={!!errors.backupFrequency}
+				<SimpleGrid
+					columns={2}
+					spacing={10}
 				>
-					<FormLabel fontWeight="medium">Backup Frequency</FormLabel>
-					<select
-						name="backupFrequency"
-						value={formValues.backupFrequency}
-						disabled={savingSettings || runningBackup}
-						onChange={handleInputChange}
-						onBlur={() => clearErrorForField("backupFrequency")}
-						style={{
-							width: "100%",
-							maxWidth: "26rem",
-							padding: "8px",
-							borderRadius: "4px",
-							border: "1px solid #CBD5E0",
-						}}
+					{/* Frequency Setting */}
+					<FormControl
+						as="fieldset"
+						mt={4}
+						isInvalid={!!errors.backupFrequency}
 					>
-						<option value="daily">Daily</option>
-						<option value="weekly">Weekly</option>
-						<option value="monthly">Monthly</option>
-					</select>
-					<FormErrorMessage>{errors.backupFrequency}</FormErrorMessage>
-				</FormControl>
+						<FormLabel fontWeight="medium">Backup Frequency</FormLabel>
+						<select
+							name="backupFrequency"
+							value={formValues.backupFrequency}
+							disabled={savingSettings || runningBackup}
+							onChange={handleInputChange}
+							onBlur={() => clearErrorForField("backupFrequency")}
+							style={{
+								width: "100%",
+								maxWidth: "26rem",
+								padding: "0 8px",
+								height: "2rem",
+								borderRadius: "4px",
+								border: "1px solid #CBD5E0",
+							}}
+						>
+							<option value="daily">Daily</option>
+							<option value="weekly">Weekly</option>
+							<option value="monthly">Monthly</option>
+						</select>
+						<FormErrorMessage>{errors.backupFrequency}</FormErrorMessage>
+					</FormControl>
 
-				{/* Time Setting */}
-				<FormControl
-					as="fieldset"
-					mt={4}
-					isInvalid={!!errors.backupTime}
-				>
-					<FormLabel fontWeight="medium">Backup Time</FormLabel>
-					<select
-						name="backupTime"
-						value={formValues.backupTime}
-						disabled={savingSettings || runningBackup}
-						onChange={handleInputChange}
-						onBlur={() => clearErrorForField("backupTime")}
-						style={{
-							width: "100%",
-							maxWidth: "26rem",
-							padding: "8px",
-							borderRadius: "4px",
-							border: "1px solid #CBD5E0",
-						}}
+					{/* Time Setting */}
+					<FormControl
+						as="fieldset"
+						mt={4}
+						isInvalid={!!errors.backupTime}
 					>
-						{render24HourTimeOptions()}
-					</select>
-					<FormErrorMessage>{errors.backupTime}</FormErrorMessage>
-				</FormControl>
-
-				{/* Email Setting */}
-				<FormControl
-					as="fieldset"
-					mt={4}
-					isInvalid={!!errors.backupEmail}
+						<FormLabel fontWeight="medium">Backup Time</FormLabel>
+						<select
+							name="backupTime"
+							value={formValues.backupTime}
+							disabled={savingSettings || runningBackup}
+							onChange={handleInputChange}
+							onBlur={() => clearErrorForField("backupTime")}
+							style={{
+								width: "100%",
+								maxWidth: "26rem",
+								padding: "0 8px",
+								height: "2rem",
+								borderRadius: "4px",
+								border: "1px solid #CBD5E0",
+							}}
+						>
+							{render24HourTimeOptions()}
+						</select>
+						<FormErrorMessage>{errors.backupTime}</FormErrorMessage>
+					</FormControl>
+				</SimpleGrid>
+				<SimpleGrid
+					columns={2}
+					spacing={10}
 				>
-					<FormLabel fontWeight="medium">Backup Email</FormLabel>
-					<Input
-						type="text"
-						name="backupEmail"
-						value={formValues.backupEmail}
-						disabled={savingSettings || runningBackup}
-						onChange={handleInputChange}
-						onBlur={() => clearErrorForField("backupEmail")}
-						borderColor="gray.300"
-						focusBorderColor="blue.500"
-						style={{
-							width: "100%",
-							maxWidth: "26rem",
-							padding: "8px",
-							borderRadius: "4px",
-							border: "1px solid #CBD5E0",
-						}}
-					/>
-					<FormErrorMessage>{errors.backupEmail}</FormErrorMessage>
-				</FormControl>
-
-				{/* Storage Location Setting */}
-				<FormControl
-					as="fieldset"
-					mt={4}
-					isInvalid={!!errors.backupStorageLocation}
-				>
-					<FormLabel fontWeight="medium">Storage Location</FormLabel>
-					<select
-						name="backupStorageLocation"
-						value={formValues.backupStorageLocation}
-						disabled={savingSettings || runningBackup}
-						onChange={(e) => {
-							resetBackupStorageCredentials();
-							handleInputChange(e);
-						}}
-						onBlur={() => clearErrorForField("backupStorageLocation")}
-						style={{
-							width: "100%",
-							maxWidth: "26rem",
-							padding: "8px",
-							borderRadius: "4px",
-							border: "1px solid #CBD5E0",
-						}}
+					{/* Email Setting */}
+					<FormControl
+						as="fieldset"
+						mt={4}
+						isInvalid={!!errors.backupEmail}
 					>
-						<option value="">Select</option>
-						<option value="Google Drive">Google Drive</option>
-						<option value="Dropbox">Dropbox</option>
-						<option value="OneDrive">OneDrive</option>
-						<option value="Amazon S3">Amazon S3</option>
-						<option value="FTP">FTP</option>
-					</select>
-					<FormErrorMessage>{errors.backupStorageLocation}</FormErrorMessage>
-				</FormControl>
+						<FormLabel fontWeight="medium">Backup Email</FormLabel>
+						<Input
+							type="text"
+							name="backupEmail"
+							value={formValues.backupEmail}
+							disabled={savingSettings || runningBackup}
+							onChange={handleInputChange}
+							onBlur={() => clearErrorForField("backupEmail")}
+							borderColor="gray.300"
+							focusBorderColor="blue.500"
+							style={{
+								width: "100%",
+								maxWidth: "26rem",
+								padding: "0 8px",
+								height: "2rem",
+								borderRadius: "4px",
+								border: "1px solid #CBD5E0",
+							}}
+						/>
+						<FormErrorMessage>{errors.backupEmail}</FormErrorMessage>
+					</FormControl>
+
+					{/* Storage Location Setting */}
+					<FormControl
+						as="fieldset"
+						mt={4}
+						isInvalid={!!errors.backupStorageLocation}
+					>
+						<FormLabel fontWeight="medium">Storage Location</FormLabel>
+						<select
+							name="backupStorageLocation"
+							value={formValues.backupStorageLocation}
+							disabled={savingSettings || runningBackup}
+							onChange={(e) => {
+								resetBackupStorageCredentials();
+								handleInputChange(e);
+							}}
+							onBlur={() => clearErrorForField("backupStorageLocation")}
+							style={{
+								width: "100%",
+								maxWidth: "26rem",
+								padding: "0 8px",
+								height: "2rem",
+								borderRadius: "4px",
+								border: "1px solid #CBD5E0",
+							}}
+						>
+							<option
+								key="option"
+								value=""
+							>
+								Choose a location
+							</option>
+							{storageLocations.map((location) => {
+								if (location.enabled) {
+									return (
+										<option
+											key={location.value}
+											value={location.value}
+										>
+											{location.label}
+										</option>
+									);
+								}
+							})}
+						</select>
+						<FormErrorMessage>{errors.backupStorageLocation}</FormErrorMessage>
+					</FormControl>
+				</SimpleGrid>
 
 				{/* Render Credential Fields Based on Selection */}
 				{renderCredentialFields(formValues.backupStorageLocation)}

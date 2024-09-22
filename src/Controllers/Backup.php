@@ -10,6 +10,7 @@ use AMDarter\SimplyBackItUp\Utils\{
     Scanner,
     Memory
 };
+use Ifsnop\Mysqldump as IMysqldump;
 
 class Backup
 {
@@ -37,6 +38,26 @@ class Backup
         update_option('simply_backitup_last_backup', $date);
     }
 
+    public static function step0(): void
+    {
+        if (!Memory::isEnoughMemory(50)) {
+            wp_send_json_error(['message' => 'Not enough memory to safely create the backup. Ensure you have enough memory and try again.']);
+        }
+
+        try {
+            $tempZipService = new TempZip();
+            $tempZipService->cleanup(0);
+            wp_send_json_success([
+                'message' => 'Site health checked',
+                'nextMessage' => 'Zipping files...',
+                'progress' => 25
+            ]);
+        } catch (\Exception $e) {
+            error_log($e->getMessage());
+            wp_send_json_error(['message' => 'Failed to clean up temporary files. Check the error log for more information.']);
+        }
+    }
+
     public static function step1(): void
     {
         if (!Memory::isEnoughMemory(50)) {
@@ -45,8 +66,12 @@ class Backup
 
         try {
             $tempStoreFile = self::zipFiles();
-            set_transient('simply_backitup_temp_zip_file', $tempStoreFile, 120);
-            wp_send_json_success(['message' => 'Files zipped', 'progress' => 33]);
+            set_transient('simply_backitup_temp_zip_file', $tempStoreFile, 30);
+            wp_send_json_success([
+                'message' => 'Files zipped',
+                'nextMessage' => 'Exporting database...',
+                'progress' => 50
+            ]);
         } catch (InvalidBackupFileException $e) {
             error_log($e->getMessage());
             if (preg_match('/^(WARNING|DANGER)/', $e->getMessage())) {
@@ -68,7 +93,11 @@ class Backup
         try {
             $databaseExported = self::exportDatabase();
             if ($databaseExported) {
-                wp_send_json_success(['message' => 'Database exported', 'progress' => 66]);
+                wp_send_json_success([
+                    'message' => 'Database exported',
+                    'nextMessage' => 'Uploading to cloud server...',
+                    'progress' => 75
+                ]);
             } else {
                 throw new \Exception('Database export failed');
             }
@@ -90,9 +119,9 @@ class Backup
             $date = date('Y-m-d H:i:s');
             update_option('simply_backitup_last_backup', $date);
             $tempZipService = new TempZip();
-            $tempZipService->cleanup();
+            $tempZipService->cleanup(60);
             wp_send_json_success([
-                'message' => 'Backup uploaded to cloud',
+                'message' => 'Backup uploaded to cloud server',
                 'progress' => 100,
                 'backupTime' => $date
             ]);
@@ -160,7 +189,7 @@ class Backup
 
             // Output file in chunks to prevent memory exhaustion
             while (!feof($handle)) {
-                echo fread($handle, 8192); // 8KB chunks
+                echo fread($handle, 1048576); // 1MB chunks
                 flush(); // Ensure output is sent to the client immediately
             }
 
@@ -188,11 +217,7 @@ class Backup
             $tempBackupZipFile = $tempZipService->tempDir() . DIRECTORY_SEPARATOR . $tempZipService->generateFilename();
             $tempZipService->zipDir(ABSPATH, $tempBackupZipFile);
             $validator = new BackupValidator($tempBackupZipFile);
-            $knownChecksums = apply_filters(
-                'simplybackitup_filter_checksums',
-                Scanner::getChecksumsFromApi() ?? []
-            );
-            $validator->validateAll($knownChecksums);
+            $validator->validateAll();
         } catch (\Exception $e) {
             error_log(
                 'Simply BackItUp: Failed to zip files. ' . $e->getMessage()
@@ -203,7 +228,7 @@ class Backup
         set_transient(
             'simply_backitup_temp_zip_file',
             $tempBackupZipFile,
-            120 // 2 minutes
+            30
         );
         return $tempBackupZipFile;
     }
@@ -219,11 +244,12 @@ class Backup
             $tempBackupZipFile = wp_normalize_path($tempBackupZipFile);
         }
         $validator = new BackupValidator($tempBackupZipFile);
-        $knownChecksums = apply_filters(
-            'simplybackitup_filter_checksums',
-            Scanner::getChecksumsFromApi() ?? []
-        );
-        $validator->validateAll($knownChecksums);
+        $validator->validateFileName()
+            ->validateFileExists()
+            ->validateFileIsZip()
+            ->validateFileSize()
+            ->validateFileIsUnzippable();
+
         $time = time() - filemtime($tempBackupZipFile);
         if ($time < 30) {
             return $tempBackupZipFile;
@@ -233,9 +259,34 @@ class Backup
 
     protected static function exportDatabase(): bool
     {
-        // Implement your database export logic here
-        // Return true on success, false on failure
-        sleep(5); // Simulate a task taking some time
+        $tempZip = new TempZip();
+
+        try {
+            // Export the database to a SQL dump file.
+            $dumpFile = $tempZip->tempDir() . DIRECTORY_SEPARATOR . 'simply-backitup-db-dump.sql';
+            if (file_exists($dumpFile)) {
+                unlink($dumpFile);
+            }
+            $dump = new IMysqldump\Mysqldump('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME, DB_USER, DB_PASSWORD);
+            $dump->start($dumpFile);
+        } catch (\Exception $e) {
+            error_log('Simply BackItUp: Database export failed. ' . $e->getMessage());
+            throw new \Exception('Database export failed.' . $e->getMessage());
+        }
+
+        try {
+            // Add the SQL dump file to the zip file.
+            $tempBackupZipFile = self::getTransientBackupFile();
+            if (empty($tempBackupZipFile) || !file_exists($tempBackupZipFile)) {
+                throw new \Exception('Temporary backup zip file not found or has expired.');
+            }
+            $tempZip->addFileToZip($dumpFile, $tempBackupZipFile);
+            unlink($dumpFile);
+        } catch (\Exception $e) {
+            error_log('Simply BackItUp: Failed to add database dump to ZIP archive. ' . $e->getMessage());
+            throw new \Exception('Failed to add database dump to ZIP archive. ' . $e->getMessage());
+        }
+
         return true;
     }
 

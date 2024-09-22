@@ -27,8 +27,6 @@ export const performBackupStep = async ({
     ajaxUrl,
     action,
     nonce,
-    progressValue,
-    message,
 }) => {
     const formData = new FormData();
     formData.append("action", action);
@@ -40,8 +38,8 @@ export const performBackupStep = async ({
         return {
             success: true,
             progress: {
-                value: progressValue,
-                message: data?.data?.message || message,
+                value: data?.data?.progress,
+                message: data?.data?.message,
             },
         };
     } else {

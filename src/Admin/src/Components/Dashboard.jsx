@@ -105,7 +105,7 @@ const DownloadSNowSection = () => {
 };
 
 const BackupHistorySection = () => {
-	const { backupHistory, fetchBackups } = useBackupHistory();
+	const { backupHistory, fetchBackups, clearBackups } = useBackupHistory();
 	const [refreshing, setRefreshing] = useState(false);
 	const { set: setTimeout } = useTimeoutManager();
 
@@ -141,14 +141,25 @@ const BackupHistorySection = () => {
 						variant="solid"
 						onClick={refreshBackups}
 						isLoading={refreshing}
-						style={{
-							marginLeft: "10px",
-							width: "25px",
-							height: "25px",
-						}}
+						style={{ marginLeft: "10px", width: "25px", height: "25px" }}
 					>
 						<span
 							class="dashicons dashicons-update"
+							aria-hidden="true"
+						></span>
+					</Button>
+					<Button
+						type="button"
+						aria-label="Clear"
+						size="xs"
+						colorScheme="red"
+						variant="solid"
+						onClick={clearBackups}
+						isLoading={refreshing}
+						style={{ marginLeft: "10px", width: "25px", height: "25px" }}
+					>
+						<span
+							class="dashicons dashicons-trash"
 							aria-hidden="true"
 						></span>
 					</Button>
@@ -158,9 +169,9 @@ const BackupHistorySection = () => {
 				border="1px solid #E2E8F0"
 				borderRadius="5px"
 				p={0}
-                style={{
-                    overflowX: "hidden",
-                }}
+				style={{
+					overflowX: "hidden",
+				}}
 			>
 				{backupHistory === null && (
 					<Center minHeight="100px">
@@ -228,7 +239,7 @@ const SettingsFormSection = () => {
 	);
 };
 
-const UpgradeToPremiumSection = () => {
+const AddonsSection = () => {
 	return (
 		<WidgetBox>
 			<Heading
@@ -243,7 +254,7 @@ const UpgradeToPremiumSection = () => {
 				color="teal.600"
 				textAlign={"center"}
 			>
-				Upgrade to Premium
+				Extend with Add-ons
 			</Heading>
 			<Text
 				fontSize="md"
@@ -259,7 +270,7 @@ const UpgradeToPremiumSection = () => {
 				mb={4}
 				textAlign={"center"}
 			>
-				Unlock more features with Simply BackItUp Premium.
+				Unlock more features with Simply BackItUp Add-ons.
 			</Text>
 			<Box textAlign={"center"}>
 				<Button
@@ -268,7 +279,7 @@ const UpgradeToPremiumSection = () => {
 					variant="solid"
 					mt={3}
 				>
-					Notify Me
+					See Add-ons
 				</Button>
 			</Box>
 		</WidgetBox>
@@ -281,18 +292,16 @@ const Dashboard = () => {
 			<TopSection />
 			{/* Grid with columns that stack on smaller screens */}
 			<Grid
-				templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+				templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
 				gap={0}
 			>
-				<GridItem>
-					<DownloadSNowSection />
-					<BackupHistorySection />
-				</GridItem>
 				<GridItem>
 					<SettingsFormSection />
 				</GridItem>
 				<GridItem>
-					<UpgradeToPremiumSection />
+					<DownloadSNowSection />
+					<BackupHistorySection />
+					<AddonsSection />
 				</GridItem>
 			</Grid>
 		</>
