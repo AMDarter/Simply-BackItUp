@@ -17,12 +17,12 @@
 ### Checksum Validation
 By default, Simply BackItUp handles checksum validation for the core WordPress files to ensure file integrity during backups. However, you can customize which files are included or excluded during the checksum validation process using the WordPress `add_filter` functionality. This allows you to either **add custom files** to be validated or **ignore specific files** that you do not want to validate as part of the backup process.
 
-When backing up files, it's important to ensure that they haven't been altered, corrupted, or tampered with by an unauthorized third party. To verify file integrity, MD5 hashing can be used to generate a unique checksum for each file. MD5 simply generates a 128-bit hash value that acts as a "fingerprint" for the file. If the file changes, even slightly, the MD5 checksum will differ, signaling potential tampering with the file.
+When backing up files, it's important to ensure that they haven't been altered, corrupted, or tampered with by an unauthorized third party. To verify file integrity, MD5 hashing can be used to generate a unique "fingerprint" for the file. If the file changes, even slightly, the MD5 checksum will differ, signaling potential tampering with the file.
 
 #### Example 1: Adding Custom Files for Validation
 To generate a checksum for custom files during the backup process, use PHP's built-in `md5_file()` function. This function reads a file and returns an MD5 hash that can then be compared during validation.
 
-However, avoid calling `md5_file()` dynamically for many files during runtime. While it is efficient for small to medium files, hashing a large number of files, especially large ones, can degrade performance and increase memory usage. Instead, pre-generate the hashes for critical files and store them in a secure non-public area. This way, you can reference the stored checksums during validation, thus, reducing unnecessary load on the server.
+Do not call `md5_file()` dynamically during runtime to verify file integrity. The purpose of verification is to compare the file against a pre-calculated checksum. Pre-generate the hashes for critical files and store them in a secure non-public area. This way, you can reference the stored "fingerprint" during validation.
 
 For core WordPress file checksums, you can reference the official WordPress Checksums API, which provides checksum values for specific WordPress versions and locales.
 
