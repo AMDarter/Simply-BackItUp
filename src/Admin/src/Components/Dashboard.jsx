@@ -272,7 +272,7 @@ const AddonsSection = () => {
 			>
 				Unlock more features with Simply BackItUp Add-ons.
 			</Text>
-			<Box textAlign={"center"}>
+			{/* <Box textAlign={"center"}>
 				<Button
 					size="sm"
 					colorScheme="teal"
@@ -281,7 +281,7 @@ const AddonsSection = () => {
 				>
 					See Add-ons
 				</Button>
-			</Box>
+			</Box> */}
 		</WidgetBox>
 	);
 };
