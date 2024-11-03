@@ -1,5 +1,7 @@
 # Simply-BackItUp
 
+In development do not use yet.
+
 **Simply-BackItUp** is a WordPress plugin designed to simplify the process of backing up your website. Currently under development, this plugin aims to provide a user-friendly interface and powerful features to ensure your website's data is secure and easily restorable.
 
 ![Main Backup Interface](assets/screenshot-1.png)
